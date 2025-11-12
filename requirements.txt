@@ -11,3 +11,22 @@ lxml==4.9.3
 psycopg2-binary==2.9.7
 SQLAlchemy==2.0.20
 pytest==7.4.0
+# Enhanced ingestion dependencies
+asyncio-mqtt==0.13.1
+apscheduler==3.10.4
+paramiko==3.4.0
+fabric==3.2.2
+celery==5.3.4
+redis==5.0.1
+dask==2024.5.1
+distributed==2024.5.1
+cudf-cu12==24.4.1
+cuml-cu12==24.4.1
+dask-cudf==24.4.1
+aiofiles==23.2.1
+aiomultiprocess==0.9.0
+concurrent-log-handler==0.9.25
+schedule==1.2.1
+psutil==5.9.8
+memory-profiler==0.61.0
+line-profiler==4.1.2
