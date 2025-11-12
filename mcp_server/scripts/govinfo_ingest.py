@@ -39,7 +39,6 @@ def ingest_collection(api_key: str, collection: str, year: int = None, download_
         source='govinfo',
         collection=f'{collection}_{year or "all"}',
         api_key=api_key[:8] + '...',  # Partial key for logging
-        collection=collection,
         year=year,
         download_dir=download_dir
     )

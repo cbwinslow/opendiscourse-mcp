@@ -130,40 +130,42 @@ This workflow suite now uses Bitwarden for secure secrets management. Instead of
 
 1. **Install Bitwarden CLI** (if not already done)
 2. **Create a Bitwarden account** or use your existing one
-3. **Store your secrets** in Bitwarden with these paths:
+3. **Store your secrets** in Bitwarden with item names matching the secret types:
    ```
-   op://private/snyk/token
-   op://private/sonarqube/token
-   op://private/sonarqube/host_url
-   op://private/codacy/api_token
-   op://private/codacy/project_token
-   op://private/openai/api_key
-   op://private/qono/api_key
-   op://private/redhat/api_key
-   op://private/slack/webhook
+   Item Name: SNYK_TOKEN (with password field containing your Snyk token)
+   Item Name: SONAR_TOKEN (with password field containing your SonarQube token)
+   Item Name: SONAR_HOST_URL (with password field containing your SonarQube URL)
+   Item Name: CODACY_API_TOKEN (with password field containing your Codacy API token)
+   Item Name: CODACY_PROJECT_TOKEN (with password field containing your Codacy project token)
+   Item Name: OPENAI_API_KEY (with password field containing your OpenAI key)
+   Item Name: QONO_API_KEY (with password field containing your Qono token)
+   Item Name: RHDA_API_KEY (with password field containing your Red Hat token)
+   Item Name: SLACK_WEBHOOK (with password field containing your Slack webhook URL)
    ```
 4. **Add Bitwarden credentials to GitHub secrets**:
    ```bash
-   BW_USERNAME=your_bitwarden_email
-   BW_PASSWORD=your_bitwarden_master_password
+   BW_CLIENTID=user.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # From your .env file
+   BW_CLIENTSECRET=your_client_secret_here                # From your .env file
    BW_HOST=https://vault.bitwarden.com  # (optional, defaults to bitwarden.com)
    ```
 
 #### How It Works
 
-- The `fetch-secrets.yml` reusable workflow logs into Bitwarden and retrieves all required secrets
-- Individual workflows call this reusable workflow to get their needed secrets
+- The workflow looks for Bitwarden items with the exact names shown above
+- It retrieves the `password` field from each item
+- If your existing items have different names, you can either:
+  - Rename your Bitwarden items to match the expected names, or
+  - Modify the `secrets:` section in `fetch-secrets.yml` to use your actual item names
 - Secrets are never stored in GitHub - they're fetched fresh each run
-- This provides enhanced security and centralized secret management
 
 ### Required Secrets (GitHub Repository Settings)
 
-Only the Bitwarden credentials need to be stored in GitHub secrets:
+Only the Bitwarden service account credentials need to be stored in GitHub secrets:
 
 ```bash
-# Bitwarden credentials for secret retrieval
-BW_USERNAME=your_bitwarden_email
-BW_PASSWORD=your_bitwarden_master_password
+# Bitwarden service account credentials (from your .env file)
+BW_CLIENTID=user.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+BW_CLIENTSECRET=your_client_secret_here
 BW_HOST=https://vault.bitwarden.com  # Optional
 
 # Note: All other secrets (Snyk, SonarQube, etc.) are now retrieved from Bitwarden
@@ -188,8 +190,9 @@ Each workflow is designed as a template. To adapt for your project:
 4. **Add/remove tools**: Comment out or modify sections as needed
 5. **Update triggers**: Adjust when workflows run based on your needs
 6. **Bitwarden Integration**: 
-   - Update the `op://` paths in `fetch-secrets.yml` to match your Bitwarden vault structure
-   - Modify the secrets retrieved based on your needs
+   - Update the item names in `fetch-secrets.yml` to match your existing Bitwarden entries
+   - The workflow expects items named `SNYK_TOKEN`, `SONAR_TOKEN`, etc.
+   - If your items have different names, modify the `secrets:` section accordingly
    - Add the fetch-secrets job to any new workflows that require API tokens
 
 #### Adapting Workflows to Use Bitwarden
@@ -201,8 +204,8 @@ To integrate Bitwarden secrets into existing or new workflows:
    fetch-secrets-job:
      uses: ./.github/workflows/fetch-secrets.yml
      secrets:
-       BW_USERNAME: ${{ secrets.BW_USERNAME }}
-       BW_PASSWORD: ${{ secrets.BW_PASSWORD }}
+       BW_CLIENTID: ${{ secrets.BW_CLIENTID }}
+       BW_CLIENTSECRET: ${{ secrets.BW_CLIENTSECRET }}
        BW_HOST: ${{ secrets.BW_HOST }}
    ```
 
@@ -214,7 +217,7 @@ To integrate Bitwarden secrets into existing or new workflows:
        MY_TOKEN: ${{ needs.fetch-secrets-job.outputs.my_token }}
    ```
 
-3. Update the secrets in Bitwarden and the paths in `fetch-secrets.yml`
+3. Update the item names in `fetch-secrets.yml` to match your existing Bitwarden vault entries
 
 ## 📊 Dashboard & Reporting
 

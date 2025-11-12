@@ -18,8 +18,8 @@ jobs:
   fetch-secrets-job:
     uses: ./.github/workflows/fetch-secrets.yml
     secrets:
-      BW_USERNAME: ${{ secrets.BW_USERNAME }}
-      BW_PASSWORD: ${{ secrets.BW_PASSWORD }}
+      BW_CLIENTID: ${{ secrets.BW_CLIENTID }}
+      BW_CLIENTSECRET: ${{ secrets.BW_CLIENTSECRET }}
       BW_HOST: ${{ secrets.BW_HOST }}
 
   security:

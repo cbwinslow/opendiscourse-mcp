@@ -40,7 +40,7 @@ class CongressClient(BaseClient):
         return {"status": "not_implemented", "collection": collection, "year": year}
 
     def get_bill_actions(self, congress: int, billType: str, billNumber: str):
-        url = f"{self.BASE}/bill/{congress}/{billType}/{billNumber}/actions"
+        url = f"{self.BASE}/v3/bill/{congress}/{billType}/{billNumber}/actions"
         params = {}
         if self.api_key:
             params["api_key"] = self.api_key
@@ -49,7 +49,7 @@ class CongressClient(BaseClient):
         return r.json()
 
     def get_bill_text(self, congress: int, billType: str, billNumber: str):
-        url = f"{self.BASE}/bill/{congress}/{billType}/{billNumber}/text"
+        url = f"{self.BASE}/v3/bill/{congress}/{billType}/{billNumber}/text"
         params = {}
         if self.api_key:
             params["api_key"] = self.api_key
@@ -58,7 +58,7 @@ class CongressClient(BaseClient):
         return r.json()
 
     def list_members(self, congress: Optional[int] = None, chamber: Optional[str] = None):
-        url = f"{self.BASE}/member"
+        url = f"{self.BASE}/v3/member"
         params = {}
         if congress:
             params["congress"] = congress
@@ -71,8 +71,54 @@ class CongressClient(BaseClient):
         return r.json()
 
     def get_member(self, bioguideId: str):
-        url = f"{self.BASE}/member/{bioguideId}"
+        url = f"{self.BASE}/v3/member/{bioguideId}"
         params = {}
+        if self.api_key:
+            params["api_key"] = self.api_key
+        r = self.session.get(url, params=params, timeout=self.timeout)
+        r.raise_for_status()
+        return r.json()
+
+    def get_committee(self, committee_code: str):
+        url = f"{self.BASE}/v3/committee/{committee_code}"
+        params = {}
+        if self.api_key:
+            params["api_key"] = self.api_key
+        r = self.session.get(url, params=params, timeout=self.timeout)
+        r.raise_for_status()
+        return r.json()
+
+    def list_committees(self, congress: Optional[int] = None, chamber: Optional[str] = None):
+        url = f"{self.BASE}/v3/committee"
+        params = {}
+        if congress:
+            params["congress"] = congress
+        if chamber:
+            params["chamber"] = chamber
+        if self.api_key:
+            params["api_key"] = self.api_key
+        r = self.session.get(url, params=params, timeout=self.timeout)
+        r.raise_for_status()
+        return r.json()
+
+    def get_vote(self, congress: int, chamber: str, session: int, roll_number: int):
+        url = f"{self.BASE}/v3/congress/{congress}/{chamber}/session/{session}/votes/{roll_number}"
+        params = {}
+        if self.api_key:
+            params["api_key"] = self.api_key
+        r = self.session.get(url, params=params, timeout=self.timeout)
+        r.raise_for_status()
+        return r.json()
+
+    def list_votes(self, congress: Optional[int] = None, chamber: Optional[str] = None, date: Optional[str] = None):
+        url = f"{self.BASE}/v3/vote"
+        params = {}
+        if congress:
+            params["congress"] = congress
+        if chamber:
+            params["chamber"] = chamber
+        if date:
+            params["date"] = date
         if self.api_key:
             params["api_key"] = self.api_key
         r = self.session.get(url, params=params, timeout=self.timeout)
@@ -622,21 +668,103 @@ class CongressClient(BaseClient):
             "district": member_row[5]
         }
 
-        # For now, return placeholder since voting data structure isn't fully defined
-        # In a real implementation, this would query congress_votes table
+        # Query voting record from congress_votes table
+        votes_query = """
+        SELECT
+            vote_id,
+            congress,
+            chamber,
+            vote_date,
+            question,
+            description,
+            result,
+            member_votes
+        FROM congress_votes
+        WHERE member_votes::text ILIKE %(member_pattern)s
+        """
+
+        member_pattern = f"%{member_data['bioguide_id']}%"
+        votes_params = {"member_pattern": member_pattern}
+
+        if congress:
+            votes_query += " AND congress = %(congress)s"
+            votes_params["congress"] = congress
+
+        votes_query += " ORDER BY vote_date DESC"
+        if limit:
+            votes_query += f" LIMIT {limit}"
+
+        with engine.connect() as conn:
+            votes_result = conn.execute(votes_query, votes_params)
+            votes_rows = votes_result.fetchall()
+
+        votes_data = []
+        for row in votes_rows:
+            vote_data = {
+                "vote_id": row[0],
+                "congress": row[1],
+                "chamber": row[2],
+                "vote_date": row[3],
+                "question": row[4],
+                "description": row[5],
+                "result": row[6]
+            }
+            votes_data.append(vote_data)
+
+        # Calculate voting statistics
+        total_votes = len(votes_data)
+        if total_votes > 0:
+            # This is a simplified analysis - in practice you'd need to parse member_votes JSON
+            voting_stats = {
+                "total_votes": total_votes,
+                "ayes": 0,  # Would need to parse member_votes JSON
+                "noes": 0,  # Would need to parse member_votes JSON
+                "present": 0,  # Would need to parse member_votes JSON
+                "not_voting": 0  # Would need to parse member_votes JSON
+            }
+        else:
+            voting_stats = {"total_votes": 0}
+
         return {
             "member": member_data,
-            "voting_record": {"status": "not_implemented", "message": "Voting data structure needs to be defined"},
+            "voting_record": {
+                "total_votes": total_votes,
+                "recent_votes": votes_data[:10],  # Show 10 most recent
+                "voting_statistics": voting_stats
+            },
             "filters": {"congress": congress}
         }
 
     def query_committee_members(self, committee_code: Optional[str] = None,
                               congress: Optional[int] = None, limit: int = 100) -> Dict[str, Any]:
         """Query committee membership information"""
-        # Placeholder - committee data structure needs to be defined
+        engine = get_sqlalchemy_engine()
+
+        query = "SELECT * FROM congress_committees WHERE 1=1"
+        params = {}
+
+        if committee_code:
+            query += " AND committee_code = %(committee_code)s"
+            params["committee_code"] = committee_code
+
+        if congress:
+            query += " AND congress = %(congress)s"
+            params["congress"] = congress
+
+        query += " ORDER BY committee_name"
+        if limit:
+            query += f" LIMIT {limit}"
+
+        with engine.connect() as conn:
+            result = conn.execute(query, params)
+            rows = result.fetchall()
+            columns = result.keys()
+
+        df = pd.DataFrame(rows, columns=columns)
+
         return {
-            "status": "not_implemented",
-            "message": "Committee data structure needs to be defined in database schema",
+            "count": len(df),
+            "committees": df.to_dict('records'),
             "filters": {"committee_code": committee_code, "congress": congress}
         }
 

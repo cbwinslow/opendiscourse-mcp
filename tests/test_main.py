@@ -619,3 +619,126 @@ class TestDataModel:
         bills_schema = data["congress_bills"]
         assert "id" in bills_schema
         assert "congress" in bills_schema
+
+
+class TestMonitoringEndpoints:
+    """Test monitoring and health check endpoints."""
+
+    @patch('mcp_server.main.monitor')
+    def test_get_ingestion_jobs(self, mock_monitor, client):
+        """Test getting all ingestion jobs."""
+        mock_monitor.get_all_jobs.return_value = [
+            {"job_id": "job1", "status": "completed"},
+            {"job_id": "job2", "status": "running"}
+        ]
+
+        response = client.get("/mcp/ingestion/jobs")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["job_id"] == "job1"
+        mock_monitor.get_all_jobs.assert_called_once_with(None)
+
+    @patch('mcp_server.main.monitor')
+    def test_get_ingestion_jobs_with_status_filter(self, mock_monitor, client):
+        """Test getting ingestion jobs filtered by status."""
+        mock_monitor.get_all_jobs.return_value = [
+            {"job_id": "job1", "status": "completed"}
+        ]
+
+        response = client.get("/mcp/ingestion/jobs?status=completed")
+
+        assert response.status_code == 200
+        mock_monitor.get_all_jobs.assert_called_once_with("completed")
+
+    @patch('mcp_server.main.monitor')
+    def test_get_ingestion_job(self, mock_monitor, client):
+        """Test getting a specific ingestion job."""
+        mock_monitor.get_job_status.return_value = {
+            "job_id": "job1",
+            "status": "completed",
+            "progress": 100
+        }
+
+        response = client.get("/mcp/ingestion/jobs/job1")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["job_id"] == "job1"
+        assert data["status"] == "completed"
+        mock_monitor.get_job_status.assert_called_once_with("job1")
+
+    @patch('mcp_server.main.monitor')
+    def test_get_ingestion_job_not_found(self, mock_monitor, client):
+        """Test getting a non-existent ingestion job."""
+        mock_monitor.get_job_status.return_value = None
+
+        response = client.get("/mcp/ingestion/jobs/nonexistent")
+
+        assert response.status_code == 404
+        assert "Job nonexistent not found" in response.json()["detail"]
+
+    @patch('mcp_server.main.monitor')
+    def test_start_ingestion_job(self, mock_monitor, client):
+        """Test starting a new ingestion job."""
+        mock_monitor.create_job.return_value = "job123"
+
+        response = client.post("/mcp/ingestion/start", json={
+            "source": "congress",
+            "collection": "bills",
+            "api_key": "test_key"
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["job_id"] == "job123"
+        assert data["status"] == "created"
+        mock_monitor.create_job.assert_called_once_with(
+            "congress", "bills", api_key="test_key"
+        )
+
+    @patch('mcp_server.main.monitor')
+    def test_start_ingestion_job_failure(self, mock_monitor, client):
+        """Test starting ingestion job with failure."""
+        mock_monitor.create_job.side_effect = Exception("Creation failed")
+
+        response = client.post("/mcp/ingestion/start", json={
+            "source": "congress",
+            "collection": "bills"
+        })
+
+        assert response.status_code == 500
+        assert "Failed to create job" in response.json()["detail"]
+
+    @patch('mcp_server.main.deduplicator')
+    def test_cleanup_old_data(self, mock_deduplicator, client):
+        """Test cleanup of old ingestion data."""
+        response = client.delete("/mcp/ingestion/cleanup?days=30")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert "Cleaned up data older than 30 days" in data["message"]
+        mock_deduplicator.cleanup_old_hashes.assert_called_once_with(30)
+
+    @patch('mcp_server.main.deduplicator')
+    def test_cleanup_old_data_failure(self, mock_deduplicator, client):
+        """Test cleanup failure."""
+        mock_deduplicator.cleanup_old_hashes.side_effect = Exception("Cleanup failed")
+
+        response = client.delete("/mcp/ingestion/cleanup")
+
+        assert response.status_code == 500
+        assert "Cleanup failed" in response.json()["detail"]
+
+    def test_health_check(self, client):
+        """Test health check endpoint."""
+        response = client.get("/mcp/health")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+        assert "timestamp" in data
+        assert "version" in data
+        assert data["version"] == "1.0.0"
