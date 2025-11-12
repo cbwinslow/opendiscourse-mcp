@@ -316,3 +316,253 @@ CREATE INDEX IF NOT EXISTS idx_congress_bill_text_processing_status ON congress_
 -- Full text search indexes
 CREATE INDEX IF NOT EXISTS idx_congress_bill_text_full_search ON congress_bill_text USING GIN(to_tsvector('english', full_text));
 CREATE INDEX IF NOT EXISTS idx_congress_bill_text_extracted_search ON congress_bill_text USING GIN(to_tsvector('english', extracted_text));
+
+CREATE TABLE IF NOT EXISTS congress_summaries (
+  -- Primary identifiers
+  summary_id TEXT PRIMARY KEY,
+  bill_id TEXT,
+
+  -- Summary metadata
+  congress SMALLINT,
+  bill_type TEXT,
+  bill_number TEXT,
+  bill_version TEXT,
+
+  -- Summary content
+  action_desc TEXT,
+  action_date DATE,
+  text TEXT,
+  as_of_date DATE,
+  update_date DATE,
+
+  -- Categories and topics
+  categories JSONB, -- Array of category objects
+  topics JSONB, -- Array of topic objects
+
+  -- Metadata
+  created_on TIMESTAMPTZ DEFAULT now(),
+  updated_on TIMESTAMPTZ DEFAULT now(),
+  last_api_update TIMESTAMPTZ DEFAULT now(),
+
+  -- Raw API response
+  raw JSONB NOT NULL,
+
+  -- Foreign key (optional, as summaries may exist for bills not yet ingested)
+  FOREIGN KEY (bill_id) REFERENCES congress_bills(bill_id) ON DELETE SET NULL
+);
+
+-- Indexes for summaries
+CREATE INDEX IF NOT EXISTS idx_congress_summaries_bill ON congress_summaries(bill_id);
+CREATE INDEX IF NOT EXISTS idx_congress_summaries_congress ON congress_summaries(congress);
+CREATE INDEX IF NOT EXISTS idx_congress_summaries_type ON congress_summaries(bill_type);
+CREATE INDEX IF NOT EXISTS idx_congress_summaries_date ON congress_summaries(action_date);
+CREATE INDEX IF NOT EXISTS idx_congress_summaries_categories ON congress_summaries USING GIN(categories);
+CREATE INDEX IF NOT EXISTS idx_congress_summaries_topics ON congress_summaries USING GIN(topics);
+
+-- Full text search indexes
+CREATE INDEX IF NOT EXISTS idx_congress_summaries_text_search ON congress_summaries USING GIN(to_tsvector('english', text));
+CREATE INDEX IF NOT EXISTS idx_congress_summaries_action_search ON congress_summaries USING GIN(to_tsvector('english', action_desc));
+
+CREATE TABLE IF NOT EXISTS congress_treaties (
+  -- Primary identifiers
+  treaty_id TEXT PRIMARY KEY,
+  congress SMALLINT NOT NULL,
+  treaty_number TEXT NOT NULL,
+
+  -- Treaty information
+  title TEXT,
+  suffix TEXT,
+  receiving_chamber TEXT, -- HOUSE, SENATE
+  receiving_chamber_calendar TEXT,
+
+  -- Status and dates
+  transmission_date DATE,
+  referral_date DATE,
+  referral_chamber TEXT,
+  committee_referral JSONB,
+
+  -- Resolution information
+  resolution_text TEXT,
+  resolution_date DATE,
+
+  -- Actions and history
+  actions JSONB, -- Array of action objects
+  committee_reports JSONB, -- Array of committee report objects
+
+  -- Current status
+  current_status TEXT,
+  current_status_date DATE,
+  current_status_description TEXT,
+
+  -- Metadata
+  created_on TIMESTAMPTZ DEFAULT now(),
+  updated_on TIMESTAMPTZ DEFAULT now(),
+  last_api_update TIMESTAMPTZ DEFAULT now(),
+
+  -- Raw API response
+  raw JSONB NOT NULL
+);
+
+-- Indexes for treaties
+CREATE INDEX IF NOT EXISTS idx_congress_treaties_congress ON congress_treaties(congress);
+CREATE INDEX IF NOT EXISTS idx_congress_treaties_number ON congress_treaties(treaty_number);
+CREATE INDEX IF NOT EXISTS idx_congress_treaties_receiving_chamber ON congress_treaties(receiving_chamber);
+CREATE INDEX IF NOT EXISTS idx_congress_treaties_transmission_date ON congress_treaties(transmission_date);
+CREATE INDEX IF NOT EXISTS idx_congress_treaties_current_status ON congress_treaties(current_status);
+CREATE INDEX IF NOT EXISTS idx_congress_treaties_actions ON congress_treaties USING GIN(actions);
+CREATE INDEX IF NOT EXISTS idx_congress_treaties_committee_reports ON congress_treaties USING GIN(committee_reports);
+
+CREATE TABLE IF NOT EXISTS congress_nominations (
+  -- Primary identifiers
+  nomination_id TEXT PRIMARY KEY,
+  congress SMALLINT NOT NULL,
+  nomination_number TEXT NOT NULL,
+
+  -- Nomination details
+  received_date DATE,
+  nominee_name TEXT,
+  nominee_state TEXT,
+  nominee_party TEXT,
+  position_title TEXT,
+  organization TEXT,
+
+  -- Committee information
+  committee_name TEXT,
+  committee_code TEXT,
+
+  -- Status and actions
+  current_status TEXT,
+  current_status_date DATE,
+  current_status_description TEXT,
+
+  -- Vote information
+  confirmation_vote JSONB,
+  cloture_vote JSONB,
+
+  -- Additional details
+  description TEXT,
+  part_of_nominees JSONB, -- For grouped nominations
+
+  -- Metadata
+  created_on TIMESTAMPTZ DEFAULT now(),
+  updated_on TIMESTAMPTZ DEFAULT now(),
+  last_api_update TIMESTAMPTZ DEFAULT now(),
+
+  -- Raw API response
+  raw JSONB NOT NULL
+);
+
+-- Indexes for nominations
+CREATE INDEX IF NOT EXISTS idx_congress_nominations_congress ON congress_nominations(congress);
+CREATE INDEX IF NOT EXISTS idx_congress_nominations_number ON congress_nominations(nomination_number);
+CREATE INDEX IF NOT EXISTS idx_congress_nominations_received_date ON congress_nominations(received_date);
+CREATE INDEX IF NOT EXISTS idx_congress_nominations_nominee_name ON congress_nominations(nominee_name);
+CREATE INDEX IF NOT EXISTS idx_congress_nominations_committee ON congress_nominations(committee_code);
+CREATE INDEX IF NOT EXISTS idx_congress_nominations_current_status ON congress_nominations(current_status);
+CREATE INDEX IF NOT EXISTS idx_congress_nominations_confirmation_vote ON congress_nominations USING GIN(confirmation_vote);
+CREATE INDEX IF NOT EXISTS idx_congress_nominations_cloture_vote ON congress_nominations USING GIN(cloture_vote);
+
+-- Full text search indexes
+CREATE INDEX IF NOT EXISTS idx_congress_nominations_description_search ON congress_nominations USING GIN(to_tsvector('english', description));
+
+CREATE TABLE IF NOT EXISTS congress_hearings (
+  -- Primary identifiers
+  hearing_id TEXT PRIMARY KEY,
+  congress SMALLINT NOT NULL,
+  chamber TEXT NOT NULL, -- house, senate, joint
+
+  -- Hearing details
+  committee_code TEXT,
+  committee_name TEXT,
+  subcommittee_name TEXT,
+
+  -- Hearing information
+  hearing_title TEXT,
+  hearing_date DATE,
+  hearing_type TEXT, -- legislative, oversight, investigative, etc.
+
+  -- Location and format
+  location TEXT,
+  room TEXT,
+  video_url TEXT,
+  transcript_url TEXT,
+
+  -- Witnesses and topics
+  witnesses JSONB, -- Array of witness objects
+  topics JSONB, -- Array of topic objects
+  related_bills JSONB, -- Array of related bill objects
+
+  -- Documents
+  documents JSONB, -- Array of document objects
+
+  -- Status
+  status TEXT, -- scheduled, postponed, held, etc.
+
+  -- Metadata
+  created_on TIMESTAMPTZ DEFAULT now(),
+  updated_on TIMESTAMPTZ DEFAULT now(),
+  last_api_update TIMESTAMPTZ DEFAULT now(),
+
+  -- Raw API response
+  raw JSONB NOT NULL
+);
+
+-- Indexes for hearings
+CREATE INDEX IF NOT EXISTS idx_congress_hearings_congress ON congress_hearings(congress);
+CREATE INDEX IF NOT EXISTS idx_congress_hearings_chamber ON congress_hearings(chamber);
+CREATE INDEX IF NOT EXISTS idx_congress_hearings_committee ON congress_hearings(committee_code);
+CREATE INDEX IF NOT EXISTS idx_congress_hearings_date ON congress_hearings(hearing_date);
+CREATE INDEX IF NOT EXISTS idx_congress_hearings_type ON congress_hearings(hearing_type);
+CREATE INDEX IF NOT EXISTS idx_congress_hearings_status ON congress_hearings(status);
+CREATE INDEX IF NOT EXISTS idx_congress_hearings_witnesses ON congress_hearings USING GIN(witnesses);
+CREATE INDEX IF NOT EXISTS idx_congress_hearings_topics ON congress_hearings USING GIN(topics);
+CREATE INDEX IF NOT EXISTS idx_congress_hearings_related_bills ON congress_hearings USING GIN(related_bills);
+
+-- Full text search indexes
+CREATE INDEX IF NOT EXISTS idx_congress_hearings_title_search ON congress_hearings USING GIN(to_tsvector('english', hearing_title));
+
+CREATE TABLE IF NOT EXISTS congress_congress (
+  -- Primary identifiers
+  congress_id SMALLINT PRIMARY KEY,
+  congress_number SMALLINT NOT NULL,
+
+  -- Congress dates
+  start_date DATE,
+  end_date DATE,
+
+  -- Session information
+  sessions JSONB, -- Array of session objects with start/end dates
+
+  -- Chamber leadership
+  house_leadership JSONB,
+  senate_leadership JSONB,
+
+  -- Committee chairs
+  committee_chairs JSONB,
+
+  -- Key statistics
+  bills_introduced INTEGER DEFAULT 0,
+  bills_enacted INTEGER DEFAULT 0,
+  nominations_received INTEGER DEFAULT 0,
+  nominations_confirmed INTEGER DEFAULT 0,
+
+  -- Major legislation
+  major_legislation JSONB, -- Array of significant bills passed
+
+  -- Metadata
+  created_on TIMESTAMPTZ DEFAULT now(),
+  updated_on TIMESTAMPTZ DEFAULT now(),
+  last_api_update TIMESTAMPTZ DEFAULT now(),
+
+  -- Raw API response
+  raw JSONB NOT NULL
+);
+
+-- Indexes for congress
+CREATE INDEX IF NOT EXISTS idx_congress_congress_start_date ON congress_congress(start_date);
+CREATE INDEX IF NOT EXISTS idx_congress_congress_end_date ON congress_congress(end_date);
+CREATE INDEX IF NOT EXISTS idx_congress_congress_sessions ON congress_congress USING GIN(sessions);
+CREATE INDEX IF NOT EXISTS idx_congress_congress_house_leadership ON congress_congress USING GIN(house_leadership);
+CREATE INDEX IF NOT EXISTS idx_congress_congress_senate_leadership ON congress_congress USING GIN(senate_leadership);
+CREATE INDEX IF NOT EXISTS idx_congress_congress_committee_chairs ON congress_congress USING GIN(committee_chairs);
+CREATE INDEX IF NOT EXISTS idx_congress_congress_major_legislation ON congress_congress USING GIN(major_legislation);

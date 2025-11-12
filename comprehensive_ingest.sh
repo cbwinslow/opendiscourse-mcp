@@ -186,6 +186,11 @@ log ""
 log "🏃 Running data ingestions..."
 
 run_ingestion "Congress" "PYTHONPATH=/home/cbwinslow/opendiscourse timeout 300 .venv/bin/python mcp_server/scripts/congress_ingest.py --congress 118 --page 1 --max_pages 2" "congress_bills" "false"
+# run_ingestion "Congress Summaries" "PYTHONPATH=/home/cbwinslow/opendiscourse timeout 300 .venv/bin/python mcp_server/scripts/congress_summaries_ingest.py --congress 118 --max_pages 2" "congress_summaries" "false"
+run_ingestion "Congress Treaties" "PYTHONPATH=/home/cbwinslow/opendiscourse timeout 300 .venv/bin/python mcp_server/scripts/congress_treaties_ingest.py --congress 118 --max_pages 2" "congress_treaties" "false"
+run_ingestion "Congress Nominations" "PYTHONPATH=/home/cbwinslow/opendiscourse timeout 300 .venv/bin/python mcp_server/scripts/congress_nominations_ingest.py --congress 118 --max_pages 2" "congress_nominations" "false"
+run_ingestion "Congress Hearings" "PYTHONPATH=/home/cbwinslow/opendiscourse timeout 300 .venv/bin/python mcp_server/scripts/congress_hearings_ingest.py --congress 118 --max_pages 2" "congress_hearings" "false"
+run_ingestion "Congress Info" "PYTHONPATH=/home/cbwinslow/opendiscourse timeout 300 .venv/bin/python mcp_server/scripts/congress_congress_ingest.py --congress 118" "congress_congress" "false"
 run_ingestion "OpenStates" "PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python mcp_server/scripts/openstates_ingest.py --jurisdiction us --per_page 50" "opencivicdata_bill" "true"
 run_ingestion "GovInfo" "PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python mcp_server/scripts/govinfo_ingest.py --collection BILLS" "govinfo_packages" "false"
 
