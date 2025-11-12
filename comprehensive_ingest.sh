@@ -169,7 +169,7 @@ fi
 if [ -n "${OPENSTATES_API_KEY:-}" ]; then
     if python -c "
 import requests
-response = requests.get('https://v3.openstates.org/bills', params={'apikey': '$OPENSTATES_API_KEY', 'per_page': 1}, timeout=10)
+response = requests.get('https://v3.openstates.org/bills', params={'apikey': '$OPENSTATES_API_KEY', 'per_page': 1, 'jurisdiction': 'us'}, timeout=30)
 print(response.status_code)
 " | grep -q "200"; then
         log "✅ OpenStates API key valid"
@@ -185,7 +185,7 @@ fi
 log ""
 log "🏃 Running data ingestions..."
 
-run_ingestion "Congress" "PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python mcp_server/scripts/congress_ingest.py --congress 118 --page 1" "congress_bills" "false"
+run_ingestion "Congress" "PYTHONPATH=/home/cbwinslow/opendiscourse timeout 300 .venv/bin/python mcp_server/scripts/congress_ingest.py --congress 118 --page 1 --max_pages 2" "congress_bills" "false"
 run_ingestion "OpenStates" "PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python mcp_server/scripts/openstates_ingest.py --jurisdiction us --per_page 50" "opencivicdata_bill" "true"
 run_ingestion "GovInfo" "PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python mcp_server/scripts/govinfo_ingest.py --collection BILLS" "govinfo_packages" "false"
 

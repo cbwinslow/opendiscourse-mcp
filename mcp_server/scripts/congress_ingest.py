@@ -71,7 +71,7 @@ def normalize_congress_bill(congress: int, bill_obj: dict) -> dict:
     }
 
 
-def ingest_bills(api_key: str, congress: int = None, billType: str = None, page: int = 1):
+def ingest_bills(api_key: str, congress: int = None, billType: str = None, page: int = 1, max_pages: int = 10):
     # Create monitoring job
     job_id = monitor.create_job(
         source='congress',
@@ -95,8 +95,9 @@ def ingest_bills(api_key: str, congress: int = None, billType: str = None, page:
 
         total_ingested = 0
         duplicates_found = 0
+        pages_processed = 0
 
-        while True:
+        while pages_processed < max_pages:
             res = client.search_bills(congress=congress, billType=billType, page=page)
 
             # Handle v3 API response structure
@@ -104,6 +105,8 @@ def ingest_bills(api_key: str, congress: int = None, billType: str = None, page:
 
             if not results:
                 break
+
+            pages_processed += 1
 
             df_rows = []
             for b in results:
@@ -150,7 +153,7 @@ def ingest_bills(api_key: str, congress: int = None, billType: str = None, page:
 
             # Check pagination for next page
             pagination = res.get('pagination', {})
-            if not pagination.get('next'):
+            if not pagination.get('next') or pages_processed >= max_pages:
                 break
 
             page += 1  # Continue to next page
@@ -168,10 +171,11 @@ if __name__ == '__main__':
     p.add_argument('--billType', default=None)
     p.add_argument('--api_key', default=os.getenv('CONGRESS_API_KEY'))
     p.add_argument('--page', type=int, default=1)
+    p.add_argument('--max_pages', type=int, default=10)  # Limit pages for testing
     args = p.parse_args()
 
     if not DB_URL:
         raise SystemExit('Please set DATABASE_URL')
     if not args.api_key:
         raise SystemExit('Please set CONGRESS_API_KEY or pass --api_key')
-    ingest_bills(api_key=args.api_key, congress=args.congress, billType=args.billType, page=args.page)
+    ingest_bills(api_key=args.api_key, congress=args.congress, billType=args.billType, page=args.page, max_pages=args.max_pages)

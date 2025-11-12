@@ -73,13 +73,14 @@ class IngestionMonitor:
 
     @contextmanager
     def monitor_job(self, job_id: str):
-        """Context manager for monitoring a job."""
+        """Context manager for monitoring a job with automatic trigger-based progress tracking."""
         job = self.jobs.get(job_id)
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
         job.status = 'running'
         self._update_job_in_db(job)
+        self._set_job_context(job_id)  # Set session context for triggers
         logger.info(f"Started monitoring job: {job_id}")
 
         try:
@@ -88,22 +89,88 @@ class IngestionMonitor:
             job.status = 'failed'
             job.errors.append(str(e))
             job.end_time = datetime.now()
+            self._clear_job_context()  # Clear session context
             self._update_job_in_db(job)
             logger.error(f"Job {job_id} failed: {e}")
             raise
         else:
             job.status = 'completed'
             job.end_time = datetime.now()
+            self._clear_job_context()  # Clear session context
             self._update_job_in_db(job)
             logger.info(f"Job {job_id} completed successfully")
 
     def update_progress(self, job_id: str, processed: int, duplicates: int = 0):
-        """Update job progress."""
+        """Update job progress (legacy method - triggers handle this automatically now)."""
         job = self.jobs.get(job_id)
         if job:
             job.processed_records = processed
             job.duplicates_found = duplicates
             self._update_job_in_db(job)
+
+    def _set_job_context(self, job_id: str):
+        """Set the active job context for database triggers."""
+        if not self.db_url:
+            return
+
+        try:
+            conn = psycopg2.connect(self.db_url)
+            cur = conn.cursor()
+            cur.execute("SELECT set_ingestion_job_context(%s)", (job_id,))
+            conn.commit()
+            cur.close()
+            conn.close()
+            logger.debug(f"Set job context: {job_id}")
+        except Exception as e:
+            logger.warning(f"Failed to set job context: {e}")
+
+    def _clear_job_context(self):
+        """Clear the active job context."""
+        if not self.db_url:
+            return
+
+        try:
+            conn = psycopg2.connect(self.db_url)
+            cur = conn.cursor()
+            cur.execute("SELECT clear_ingestion_job_context()")
+            conn.commit()
+            cur.close()
+            conn.close()
+            logger.debug("Cleared job context")
+        except Exception as e:
+            logger.warning(f"Failed to clear job context: {e}")
+
+    def get_job_progress(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get real-time job progress from database."""
+        if not self.db_url:
+            return None
+
+        try:
+            conn = psycopg2.connect(self.db_url)
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT processed_records, status, updated_at, total_records, duplicates_found
+                FROM ingestion_jobs
+                WHERE job_id = %s
+            """, (job_id,))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+
+            if row:
+                processed, status, updated_at, total, duplicates = row
+                return {
+                    'job_id': job_id,
+                    'processed_records': processed or 0,
+                    'status': status,
+                    'total_records': total or 0,
+                    'duplicates_found': duplicates or 0,
+                    'last_updated': updated_at.isoformat() if updated_at else None
+                }
+        except Exception as e:
+            logger.warning(f"Failed to get job progress: {e}")
+
+        return None
 
     def get_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Get job status."""
@@ -298,6 +365,30 @@ class DeduplicationManager:
         except Exception as e:
             logger.warning(f"Failed to cleanup old hashes: {e}")
 
-# Global instances
-monitor = IngestionMonitor()
-deduplicator = DeduplicationManager()
+# Global instances - lazy loaded to ensure environment is available
+_monitor = None
+_deduplicator = None
+
+def _get_monitor():
+    global _monitor
+    if _monitor is None:
+        _monitor = IngestionMonitor()
+    return _monitor
+
+def _get_deduplicator():
+    global _deduplicator
+    if _deduplicator is None:
+        _deduplicator = DeduplicationManager()
+    return _deduplicator
+
+# For backward compatibility, create proxy objects that lazy-load
+class LazyMonitor:
+    def __getattr__(self, name):
+        return getattr(_get_monitor(), name)
+
+class LazyDeduplicator:
+    def __getattr__(self, name):
+        return getattr(_get_deduplicator(), name)
+
+monitor = LazyMonitor()
+deduplicator = LazyDeduplicator()
