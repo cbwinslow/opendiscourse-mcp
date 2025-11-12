@@ -11,6 +11,10 @@ lxml==4.9.3
 psycopg2-binary==2.9.7
 SQLAlchemy==2.0.20
 pytest==7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.10.0
+pytest-cov>=4.0
+httpx>=0.24.0
 # Enhanced ingestion dependencies
 asyncio-mqtt==0.13.1
 apscheduler==3.10.4

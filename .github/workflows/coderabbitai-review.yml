@@ -1,0 +1,77 @@
+name: CodeRabbit AI Review
+
+# Generic CodeRabbitAI Automated Code Review Template
+# Provides AI-powered code reviews and suggestions
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  coderabbitai-review:
+    name: CodeRabbitAI Review
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: CodeRabbitAI Review
+      uses: coderabbitai/ai-pr-reviewer@latest
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      with:
+        # Optional: Configure review behavior
+        review_simple_changes: true
+        review_comment_lgtm: false
+        # Optional: Specify files to review
+        # files: "mcp_server/**/*.py,tests/**/*.py"
+        # Optional: Configure review scope
+        # max_files: 10
+        # Optional: Custom prompts
+        # system_message: "You are an expert Python developer reviewing code for a legislative data API system..."
+        # Optional: Enable experimental features
+        # experimental: true
+
+  # Alternative: CodeRabbitAI with custom configuration
+  coderabbitai-custom:
+    name: CodeRabbitAI Custom Review
+    runs-on: ubuntu-latest
+    if: ${{ false }}  # Enable if you want both workflows
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: CodeRabbitAI Custom Review
+      uses: coderabbitai/ai-pr-reviewer@latest
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      with:
+        # Custom configuration for Python legislative data project
+        system_message: |
+          You are an expert Python developer specializing in legislative data systems, APIs, and data processing.
+          Focus on:
+          - Data integrity and validation
+          - API rate limiting and error handling
+          - Database optimization and query efficiency
+          - Security best practices for data handling
+          - Code maintainability and readability
+          - Performance considerations for large datasets
+        review_simple_changes: false
+        review_comment_lgtm: false
+        max_files: 20
+        # Focus on critical files
+        files: |
+          mcp_server/**/*.py
+          tests/**/*.py
+          requirements.txt
+          pyproject.toml
+          setup.py

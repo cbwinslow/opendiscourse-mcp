@@ -1,0 +1,99 @@
+name: Snyk Security Scan
+
+# Generic Snyk Security Scanning Template with Bitwarden Secrets
+# Scans for vulnerabilities in dependencies and container images
+# Secrets are retrieved from Bitwarden for enhanced security
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  fetch-secrets-job:
+    uses: ./.github/workflows/fetch-secrets.yml
+    secrets:
+      BW_USERNAME: ${{ secrets.BW_USERNAME }}
+      BW_PASSWORD: ${{ secrets.BW_PASSWORD }}
+      BW_HOST: ${{ secrets.BW_HOST }}
+
+  security:
+    runs-on: ubuntu-latest
+    needs: fetch-secrets-job
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Snyk to check for vulnerabilities
+      uses: snyk/actions/python@master
+      continue-on-error: true # To make sure that SARIF upload gets called
+      env:
+        SNYK_TOKEN: ${{ needs.fetch-secrets-job.outputs.snyk_token }}
+      with:
+        args: |
+          --sarif-file-output=snyk.sarif
+          --severity-threshold=medium
+
+    - name: Upload result to GitHub Code Scanning
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: snyk.sarif
+
+    - name: Run Snyk Code Test
+      uses: snyk/actions/python@master
+      continue-on-error: true
+      env:
+        SNYK_TOKEN: ${{ needs.fetch-secrets-job.outputs.snyk_token }}
+      with:
+        args: |
+          --sarif-file-output=snyk-code.sarif
+
+    - name: Upload Snyk Code results to GitHub Code Scanning
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: snyk-code.sarif
+
+  # Optional: Container scanning if Dockerfile exists
+  container-scan:
+    runs-on: ubuntu-latest
+    needs: fetch-secrets-job
+    if: exists('Dockerfile')
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build Docker image
+      run: docker build -t my-app .
+
+    - name: Run Snyk Container Test
+      uses: snyk/actions/docker@master
+      continue-on-error: true
+      env:
+        SNYK_TOKEN: ${{ needs.fetch-secrets-job.outputs.snyk_token }}
+      with:
+        image: my-app
+        args: --file=Dockerfile
+        sarif: true
+
+    - name: Upload container results to GitHub Code Scanning
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: snyk-container.sarif

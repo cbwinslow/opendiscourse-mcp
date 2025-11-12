@@ -1,0 +1,241 @@
+name: Automated Documentation
+
+# Generic Automated Documentation Generation Template
+# Generates and updates documentation from code
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run weekly on Sundays at 4 AM UTC
+    - cron: '0 4 * * 0'
+  workflow_dispatch:
+
+jobs:
+  generate-docs:
+    name: Generate Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install documentation tools
+      run: |
+        pip install sphinx sphinx-rtd-theme autodoc pdoc3 mkdocs mkdocs-material
+
+    - name: Generate API documentation with pdoc
+      run: |
+        pdoc --html --output-dir docs/api mcp_server
+        mv docs/api/mcp_server/* docs/api/ 2>/dev/null || true
+        rmdir docs/api/mcp_server 2>/dev/null || true
+
+    - name: Generate Sphinx documentation
+      run: |
+        # Create Sphinx configuration if it doesn't exist
+        if [ ! -f docs/conf.py ]; then
+          sphinx-quickstart --quiet --project="OpenDiscourse MCP" --author="AI Assistant" --release="1.0" --language="en" docs --makefile --no-batchfile
+        fi
+
+        # Generate API docs with sphinx-apidoc
+        sphinx-apidoc -f -o docs/ mcp_server
+
+        # Build HTML documentation
+        cd docs && make html
+
+    - name: Generate MkDocs documentation
+      run: |
+        # Create mkdocs.yml if it doesn't exist
+        if [ ! -f mkdocs.yml ]; then
+          cat > mkdocs.yml << EOF
+        site_name: OpenDiscourse MCP
+        site_description: Legislative Data API Server
+        site_author: AI Assistant
+
+        theme:
+          name: material
+          palette:
+            primary: blue
+            accent: blue
+
+        nav:
+          - Home: index.md
+          - API Reference: api/
+          - User Guide: user-guide.md
+
+        plugins:
+          - search
+          - mkdocstrings:
+              default_handler: python
+              handlers:
+                python:
+                  rendering:
+                    show_source: true
+
+        markdown_extensions:
+          - codehilite
+          - toc:
+              permalink: true
+        EOF
+        fi
+
+        # Generate docs with mkdocs
+        mkdocs build --clean
+
+    - name: Generate dependency documentation
+      run: |
+        pip install pipdeptree
+        echo "# Dependencies" > docs/dependencies.md
+        echo "" >> docs/dependencies.md
+        echo "## Runtime Dependencies" >> docs/dependencies.md
+        echo "\`\`\`" >> docs/dependencies.md
+        pipdeptree >> docs/dependencies.md
+        echo "\`\`\`" >> docs/dependencies.md
+
+    - name: Generate code metrics documentation
+      run: |
+        pip install radon
+        echo "# Code Metrics" > docs/metrics.md
+        echo "" >> docs/metrics.md
+        echo "## Complexity Analysis" >> docs/metrics.md
+        echo "\`\`\`" >> docs/metrics.md
+        radon cc mcp_server/ --min B >> docs/metrics.md 2>/dev/null || echo "No complex functions found" >> docs/metrics.md
+        echo "\`\`\`" >> docs/metrics.md
+        echo "" >> docs/metrics.md
+        echo "## Maintainability Index" >> docs/metrics.md
+        echo "\`\`\`" >> docs/metrics.md
+        radon mi mcp_server/ >> docs/metrics.md 2>/dev/null || echo "Could not calculate maintainability index" >> docs/metrics.md
+        echo "\`\`\`" >> docs/metrics.md
+
+    - name: Update README with latest info
+      run: |
+        # Update version info, badges, etc. in README
+        if [ -f README.md ]; then
+          # Add/update badges
+          sed -i '1i[![CI](https://github.com/cbwinslow/opendiscourse-mcp/workflows/CI/CD%20Pipeline/badge.svg)](https://github.com/cbwinslow/opendiscourse-mcp/actions)\n[![Coverage](https://codecov.io/gh/cbwinslow/opendiscourse-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/cbwinslow/opendiscourse-mcp)\n[![Python Version](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11-blue)](https://python.org)\n' README.md
+        fi
+
+    - name: Upload generated documentation
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: generated-docs
+        path: |
+          docs/
+          site/
+
+  deploy-docs:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: generate-docs
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download generated docs
+      uses: actions/download-artifact@v3
+      with:
+        name: generated-docs
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./site
+        cname: docs.opendiscourse.dev  # Optional custom domain
+
+    # Alternative: Deploy to Netlify
+    - name: Deploy to Netlify
+      if: ${{ false }}  # Enable if using Netlify
+      run: |
+        pip install netlify-cli
+        netlify deploy --dir=./site --prod
+      env:
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+  update-wiki:
+    name: Update Wiki
+    runs-on: ubuntu-latest
+    needs: generate-docs
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Checkout wiki
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ github.repository }}.wiki
+        path: wiki
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update wiki with latest docs
+      run: |
+        # Copy generated docs to wiki
+        cp -r docs/* wiki/ 2>/dev/null || true
+
+        # Update wiki home page
+        cat > wiki/Home.md << EOF
+        # OpenDiscourse MCP Documentation
+
+        Welcome to the OpenDiscourse MCP project documentation.
+
+        ## Quick Links
+
+        - [API Reference](API-Reference)
+        - [User Guide](User-Guide)
+        - [Code Metrics](Code-Metrics)
+        - [Dependencies](Dependencies)
+
+        ## Getting Started
+
+        OpenDiscourse is a Model Context Protocol (MCP) server that reverse-engineers legislative data APIs from Congress.gov, OpenStates, and GovInfo.
+
+        ### Installation
+
+        \`\`\`bash
+        pip install -r requirements.txt
+        python mcp_server/db_init.py --all
+        uvicorn mcp_server.main:app --reload
+        \`\`\`
+
+        ### Usage
+
+        See the [User Guide](User-Guide) for detailed usage instructions.
+
+        ---
+        *Last updated: $(date)*
+        EOF
+
+    - name: Commit wiki updates
+      run: |
+        cd wiki
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        if git diff --staged --quiet; then
+          echo "No wiki changes to commit"
+        else
+          git commit -m "docs: update wiki with latest documentation
+
+        - Updated API reference
+        - Refreshed code metrics
+        - Updated dependency information
+        - Auto-generated from codebase"
+          git push
+        fi

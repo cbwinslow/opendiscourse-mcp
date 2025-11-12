@@ -1,0 +1,85 @@
+name: Red Hat Dependency Analytics
+
+# Generic Red Hat Dependency Analytics Template
+# Analyzes dependencies for security vulnerabilities and license compliance
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run weekly on Tuesdays at 4 AM UTC
+    - cron: '0 4 * * 2'
+  workflow_dispatch:
+
+jobs:
+  redhat-dependency-analytics:
+    name: Red Hat Dependency Analytics
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Generate SBOM (Software Bill of Materials)
+      run: |
+        # Install Syft for SBOM generation
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+        # Generate SBOM in SPDX format
+        syft packages . --output spdx-json=sbom.spdx.json
+
+    - name: Run Red Hat Dependency Analytics
+      uses: redhat-actions/dependency-analytics@v1
+      with:
+        # Required: Red Hat API token
+        api-token: ${{ secrets.REDHAT_DEPENDENCY_ANALYTICS_TOKEN }}
+        # Optional: Configuration
+        # manifest-file: requirements.txt
+        # ecosystem: python
+        # fail-on-vulnerability: true
+        # vulnerability-threshold: medium
+        # license-check: true
+        # output-format: json
+        # output-file: dependency-analysis.json
+
+    # Alternative: Manual approach with Red Hat CLI
+    - name: Install Red Hat CLI
+      run: |
+        # Download and install Red Hat CLI if available
+        # curl -L https://github.com/redhat-developer/cli/releases/download/v1.0.0/rh-cli-linux-amd64.tar.gz | tar xz
+        # sudo mv rh /usr/local/bin/
+        echo "Red Hat CLI installation would go here"
+      if: ${{ false }}  # Enable if CLI is available
+
+    - name: Run Red Hat CLI Analysis
+      run: |
+        # rh dependency-analytics analyze --token ${{ secrets.REDHAT_DEPENDENCY_ANALYTICS_TOKEN }}
+        echo "Red Hat CLI analysis would run here"
+      if: ${{ false }}  # Enable if CLI is available
+
+    - name: Upload SBOM
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: sbom
+        path: sbom.spdx.json
+        retention-days: 30
+
+    - name: Upload Dependency Analysis Results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: dependency-analysis
+        path: dependency-analysis.json
+        retention-days: 30
