@@ -40,6 +40,58 @@ class TestTokenRegistration:
         assert response.status_code == 400
         assert "Unknown site" in response.json()["detail"]
 
+    def test_register_token_missing_fields(self, client):
+        """Test registration with missing required fields."""
+        # Missing api_key
+        response = client.post("/mcp/register_token", json={
+            "site": "congress",
+            "user_id": "test_user"
+        })
+        assert response.status_code == 422  # Pydantic validation error
+
+        # Missing site
+        response = client.post("/mcp/register_token", json={
+            "user_id": "test_user",
+            "api_key": "test_key"
+        })
+        assert response.status_code == 422
+
+    def test_register_token_empty_api_key(self, client):
+        """Test registration with empty API key."""
+        response = client.post("/mcp/register_token", json={
+            "site": "congress",
+            "user_id": "test_user",
+            "api_key": ""
+        })
+        assert response.status_code == 200  # Should still work, empty keys allowed
+
+    def test_register_token_case_insensitive_site(self, client):
+        """Test registration with case-insensitive site names."""
+        response = client.post("/mcp/register_token", json={
+            "site": "CONGRESS",  # Uppercase
+            "user_id": "test_user",
+            "api_key": "test_key"
+        })
+        assert response.status_code == 200
+        assert response.json()["site"] == "congress"  # Should be lowercased
+
+    def test_register_token_duplicate_registration(self, client):
+        """Test registering the same site twice for same user."""
+        # First registration
+        client.post("/mcp/register_token", json={
+            "site": "congress",
+            "user_id": "test_user",
+            "api_key": "test_key"
+        })
+
+        # Second registration should overwrite
+        response = client.post("/mcp/register_token", json={
+            "site": "congress",
+            "user_id": "test_user",
+            "api_key": "new_test_key"
+        })
+        assert response.status_code == 200
+
 
 class TestFunctionExecution:
     """Test function execution endpoints."""
@@ -140,6 +192,83 @@ class TestFunctionExecution:
 
         assert response.status_code == 500
         assert "Function execution failed" in response.json()["detail"]
+
+    def test_execute_function_missing_args(self, client):
+        """Test function execution with missing required arguments."""
+        client.post("/mcp/register_token", json={
+            "site": "congress",
+            "user_id": "test_user",
+            "api_key": "test_key"
+        })
+
+        response = client.post("/mcp/execute", json={
+            "user_id": "test_user",
+            "site": "congress"
+            # Missing function and args
+        })
+
+        assert response.status_code == 422  # Pydantic validation error
+
+    def test_execute_function_empty_args(self, client):
+        """Test function execution with empty args dict."""
+        client.post("/mcp/register_token", json={
+            "site": "congress",
+            "user_id": "test_user",
+            "api_key": "test_key"
+        })
+
+        response = client.post("/mcp/execute", json={
+            "user_id": "test_user",
+            "site": "congress",
+            "function": "search_bills",
+            "args": None  # Should handle None args
+        })
+
+        assert response.status_code == 422  # Should still validate
+
+    @patch('mcp_server.clients.congress_client.CongressClient')
+    def test_execute_function_different_sites(self, mock_client_class, client):
+        """Test function execution with different API sites."""
+        # Test with OpenStates
+        client.post("/mcp/register_token", json={
+            "site": "openstates",
+            "user_id": "test_user",
+            "api_key": "test_key"
+        })
+
+        mock_client = Mock()
+        mock_client.search_bills.return_value = {"results": []}
+        mock_client_class.return_value = mock_client
+
+        response = client.post("/mcp/execute", json={
+            "user_id": "test_user",
+            "site": "openstates",
+            "function": "search_bills",
+            "args": {"jurisdiction": "us"}
+        })
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
+    def test_execute_function_wrong_site_token(self, client):
+        """Test function execution with token registered for different site."""
+        # Register for congress
+        client.post("/mcp/register_token", json={
+            "site": "congress",
+            "user_id": "test_user",
+            "api_key": "test_key"
+        })
+
+        # Try to execute with openstates
+        response = client.post("/mcp/execute", json={
+            "user_id": "test_user",
+            "site": "openstates",
+            "function": "search_bills",
+            "args": {}
+        })
+
+        assert response.status_code == 401
+        assert "No API key registered" in response.json()["detail"]
 
 
 class TestDataIngestion:
@@ -267,6 +396,75 @@ class TestDataQuery:
         call_args = mock_cursor.execute.call_args[0][0]
         assert "WHERE id = 'doc1'" in call_args
 
+    @patch('psycopg2.connect')
+    def test_query_data_with_order_by(self, mock_connect, client):
+        """Test data query with ORDER BY clause."""
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        mock_cursor.description = [("id",), ("title",)]
+        mock_cursor.fetchall.return_value = [("doc1", "Doc 1")]
+        mock_conn.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_conn
+
+        response = client.post("/mcp/query_data", json={
+            "user_id": "test_user",
+            "database_url": "postgresql://test:test@localhost/testdb",
+            "table": "test_table",
+            "order_by": "id DESC",
+            "limit": 10
+        })
+
+        assert response.status_code == 200
+        mock_cursor.execute.assert_called_once()
+        call_args = mock_cursor.execute.call_args[0][0]
+        assert "ORDER BY id DESC" in call_args
+
+    @patch('psycopg2.connect')
+    def test_query_data_database_error(self, mock_connect, client):
+        """Test data query with database connection error."""
+        mock_connect.side_effect = Exception("Database connection failed")
+
+        response = client.post("/mcp/query_data", json={
+            "user_id": "test_user",
+            "database_url": "postgresql://test:test@localhost/testdb",
+            "table": "test_table",
+            "limit": 100
+        })
+
+        assert response.status_code == 500
+        assert "Query failed" in response.json()["detail"]
+
+    def test_query_data_missing_fields(self, client):
+        """Test data query with missing required fields."""
+        response = client.post("/mcp/query_data", json={
+            "user_id": "test_user",
+            "database_url": "postgresql://test:test@localhost/testdb"
+            # Missing table
+        })
+
+        assert response.status_code == 422  # Pydantic validation error
+
+    @patch('psycopg2.connect')
+    def test_query_data_empty_result(self, mock_connect, client):
+        """Test data query that returns no results."""
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        mock_cursor.description = [("id",), ("title",)]
+        mock_cursor.fetchall.return_value = []  # Empty result
+        mock_conn.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_conn
+
+        response = client.post("/mcp/query_data", json={
+            "user_id": "test_user",
+            "database_url": "postgresql://test:test@localhost/testdb",
+            "table": "test_table",
+            "limit": 100
+        })
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        assert len(response.json()["data"]) == 0
+
 
 class TestDataExport:
     """Test data export endpoints."""
@@ -291,6 +489,101 @@ class TestDataExport:
 
         assert response.status_code == 200
         assert response.json()["status"] == "success"
+        mock_save.assert_called_once()
+
+    @patch('psycopg2.connect')
+    @patch('mcp_server.utils.ingest.save_dataframe')
+    def test_export_data_with_where_clause(self, mock_save, mock_connect, client):
+        """Test data export with WHERE clause."""
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        mock_cursor.description = [("id",), ("title",)]
+        mock_cursor.fetchall.return_value = [("doc1", "Doc 1")]
+        mock_conn.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_conn
+
+        response = client.post("/mcp/export_data", json={
+            "user_id": "test_user",
+            "database_url": "postgresql://test:test@localhost/testdb",
+            "table": "test_table",
+            "where_clause": "status = 'active'",
+            "format": "json"
+        })
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        mock_save.assert_called_once()
+
+    @patch('psycopg2.connect')
+    @patch('mcp_server.utils.ingest.save_dataframe')
+    def test_export_data_custom_output_path(self, mock_save, mock_connect, client):
+        """Test data export with custom output path."""
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        mock_cursor.description = [("id",), ("title",)]
+        mock_cursor.fetchall.return_value = [("doc1", "Doc 1")]
+        mock_conn.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_conn
+
+        response = client.post("/mcp/export_data", json={
+            "user_id": "test_user",
+            "database_url": "postgresql://test:test@localhost/testdb",
+            "table": "test_table",
+            "format": "xlsx",
+            "output_path": "/custom/path/export.xlsx"
+        })
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        assert response.json()["file"] == "/custom/path/export.xlsx"
+        mock_save.assert_called_once()
+
+    @patch('psycopg2.connect')
+    def test_export_data_database_error(self, mock_connect, client):
+        """Test data export with database connection error."""
+        mock_connect.side_effect = Exception("Database connection failed")
+
+        response = client.post("/mcp/export_data", json={
+            "user_id": "test_user",
+            "database_url": "postgresql://test:test@localhost/testdb",
+            "table": "test_table",
+            "format": "csv"
+        })
+
+        assert response.status_code == 500
+        assert "Export failed" in response.json()["detail"]
+
+    def test_export_data_missing_fields(self, client):
+        """Test data export with missing required fields."""
+        response = client.post("/mcp/export_data", json={
+            "user_id": "test_user",
+            "database_url": "postgresql://test:test@localhost/testdb"
+            # Missing table
+        })
+
+        assert response.status_code == 422  # Pydantic validation error
+
+    @patch('psycopg2.connect')
+    @patch('mcp_server.utils.ingest.save_dataframe')
+    def test_export_data_empty_result(self, mock_save, mock_connect, client):
+        """Test data export with no data."""
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        mock_cursor.description = [("id",), ("title",)]
+        mock_cursor.fetchall.return_value = []  # Empty result
+        mock_conn.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_conn
+
+        response = client.post("/mcp/export_data", json={
+            "user_id": "test_user",
+            "database_url": "postgresql://test:test@localhost/testdb",
+            "table": "test_table",
+            "format": "csv"
+        })
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        assert response.json()["records"] == 0
         mock_save.assert_called_once()
 
 

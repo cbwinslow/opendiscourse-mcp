@@ -40,17 +40,7 @@ export default function ApiReference() {
             { name: 'congress', type: 'int', description: 'Congress number' },
             { name: 'billType', type: 'str', description: 'Bill type (hr, s, hjres, etc.)' },
             { name: 'billNumber', type: 'str', description: 'Bill number' }
-          ],
-          example: `{
-  "user_id": "your_user_id",
-  "site": "congress",
-  "function": "get_bill",
-  "args": {
-    "congress": 118,
-    "billType": "hr",
-    "billNumber": "1234"
-  }
-}`
+          ]
         },
         {
           name: 'get_bill_actions',
@@ -86,13 +76,19 @@ export default function ApiReference() {
           ]
         },
         {
-          name: 'search_bills_by_text_content',
-          description: 'Search bills by text content using advanced text search',
+          name: 'bulk_download_collection',
+          description: 'Download bulk data collections from Congress.gov',
           parameters: [
-            { name: 'search_text', type: 'str', description: 'Text to search for in bill content' },
-            { name: 'congress', type: 'Optional[int]', description: 'Limit search to specific congress' },
-            { name: 'bill_type', type: 'Optional[str]', description: 'Limit search to specific bill type' },
-            { name: 'limit', type: 'int', description: 'Maximum number of results', default: '100' }
+            { name: 'collection', type: 'str', description: 'Collection name' },
+            { name: 'year', type: 'Optional[int]', description: 'Year to download' }
+          ]
+        },
+        {
+          name: 'query_congress_bills',
+          description: 'Query bills with advanced filtering options',
+          parameters: [
+            { name: 'filters', type: 'Optional[Dict]', description: 'Advanced filter criteria' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
           ]
         },
         {
@@ -110,6 +106,104 @@ export default function ApiReference() {
             { name: 'congress', type: 'Optional[int]', description: 'Congress number' },
             { name: 'start_year', type: 'Optional[int]', description: 'Start year for analysis' },
             { name: 'end_year', type: 'Optional[int]', description: 'End year for analysis' }
+          ]
+        },
+        {
+          name: 'search_congress_bills_advanced',
+          description: 'Advanced bill search with multiple criteria',
+          parameters: [
+            { name: 'keywords', type: 'Optional[List[str]]', description: 'Keywords to search' },
+            { name: 'congress', type: 'Optional[int]', description: 'Congress number' },
+            { name: 'sponsor_party', type: 'Optional[str]', description: 'Sponsor party' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'analyze_member_activity',
+          description: 'Analyze legislative activity of specific members',
+          parameters: [
+            { name: 'member_id', type: 'str', description: 'Member bioguide ID' },
+            { name: 'congress', type: 'Optional[int]', description: 'Congress number' }
+          ]
+        },
+        {
+          name: 'compare_congresses',
+          description: 'Compare legislative activity between congresses',
+          parameters: [
+            { name: 'congress1', type: 'int', description: 'First congress number' },
+            { name: 'congress2', type: 'int', description: 'Second congress number' }
+          ]
+        },
+        {
+          name: 'export_congress_data',
+          description: 'Export Congress data in various formats',
+          parameters: [
+            { name: 'data_type', type: 'str', description: 'Type of data to export (bills, members, votes)' },
+            { name: 'format', type: 'str', description: 'Export format (csv, json)', default: 'csv' },
+            { name: 'filters', type: 'Optional[Dict]', description: 'Export filters' }
+          ]
+        },
+        {
+          name: 'query_bills_by_party',
+          description: 'Query bills sponsored by specific party',
+          parameters: [
+            { name: 'party', type: 'str', description: 'Political party (D, R, I)' },
+            { name: 'congress', type: 'Optional[int]', description: 'Congress number' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'query_bills_by_member_name',
+          description: 'Query bills sponsored by specific member',
+          parameters: [
+            { name: 'member_name', type: 'str', description: 'Member name' },
+            { name: 'congress', type: 'Optional[int]', description: 'Congress number' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'query_bills_by_year_range',
+          description: 'Query bills within a year range',
+          parameters: [
+            { name: 'start_year', type: 'int', description: 'Start year' },
+            { name: 'end_year', type: 'int', description: 'End year' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'query_bills_by_topics',
+          description: 'Query bills by policy topics',
+          parameters: [
+            { name: 'topics', type: 'List[str]', description: 'Policy topics to search' },
+            { name: 'congress', type: 'Optional[int]', description: 'Congress number' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'query_member_voting_record',
+          description: 'Query voting record of a specific member',
+          parameters: [
+            { name: 'member_id', type: 'str', description: 'Member bioguide ID' },
+            { name: 'congress', type: 'Optional[int]', description: 'Congress number' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'query_committee_members',
+          description: 'Query members of specific committees',
+          parameters: [
+            { name: 'committee_code', type: 'str', description: 'Committee code' },
+            { name: 'congress', type: 'Optional[int]', description: 'Congress number' }
+          ]
+        },
+        {
+          name: 'search_bills_by_text_content',
+          description: 'Search bills by text content using advanced text search',
+          parameters: [
+            { name: 'search_text', type: 'str', description: 'Text to search for in bill content' },
+            { name: 'congress', type: 'Optional[int]', description: 'Limit search to specific congress' },
+            { name: 'bill_type', type: 'Optional[str]', description: 'Limit search to specific bill type' },
+            { name: 'limit', type: 'int', description: 'Maximum number of results', default: '100' }
           ]
         }
       ]
@@ -177,6 +271,54 @@ export default function ApiReference() {
           ]
         },
         {
+          name: 'get_openapi_schema',
+          description: 'Get the OpenAPI schema for the OpenStates API',
+          parameters: []
+        },
+        {
+          name: 'query_bills',
+          description: 'Query bills with advanced filtering',
+          parameters: [
+            { name: 'filters', type: 'Optional[Dict]', description: 'Query filters' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'export_bills',
+          description: 'Export bill data in various formats',
+          parameters: [
+            { name: 'jurisdiction', type: 'Optional[str]', description: 'State abbreviation' },
+            { name: 'format', type: 'str', description: 'Export format (csv, json)', default: 'csv' },
+            { name: 'filters', type: 'Optional[Dict]', description: 'Export filters' }
+          ]
+        },
+        {
+          name: 'analyze_bill_sponsors',
+          description: 'Analyze bill sponsorship patterns',
+          parameters: [
+            { name: 'jurisdiction', type: 'Optional[str]', description: 'State abbreviation' },
+            { name: 'party', type: 'Optional[str]', description: 'Filter by party' }
+          ]
+        },
+        {
+          name: 'find_related_bills',
+          description: 'Find bills related by topic or sponsor',
+          parameters: [
+            { name: 'bill_id', type: 'str', description: 'Base bill ID' },
+            { name: 'jurisdiction', type: 'Optional[str]', description: 'State abbreviation' },
+            { name: 'limit', type: 'int', description: 'Maximum related bills', default: '10' }
+          ]
+        },
+        {
+          name: 'get_legislative_trends',
+          description: 'Get legislative trends and statistics',
+          parameters: [
+            { name: 'jurisdiction', type: 'Optional[str]', description: 'State abbreviation' },
+            { name: 'start_year', type: 'Optional[int]', description: 'Start year' },
+            { name: 'end_year', type: 'Optional[int]', description: 'End year' }
+          ]
+        },
+        {
           name: 'search_bills_advanced',
           description: 'Advanced bill search with multiple criteria',
           parameters: [
@@ -197,12 +339,91 @@ export default function ApiReference() {
           ]
         },
         {
-          name: 'find_related_bills',
-          description: 'Find bills related by topic or sponsor',
+          name: 'export_filtered_data',
+          description: 'Export filtered data in various formats',
           parameters: [
-            { name: 'bill_id', type: 'str', description: 'Base bill ID' },
+            { name: 'data_type', type: 'str', description: 'Type of data to export' },
+            { name: 'format', type: 'str', description: 'Export format (csv, json)', default: 'csv' },
+            { name: 'filters', type: 'Optional[Dict]', description: 'Export filters' }
+          ]
+        },
+        {
+          name: 'compare_legislatures',
+          description: 'Compare legislative activity between jurisdictions',
+          parameters: [
+            { name: 'jurisdiction1', type: 'str', description: 'First jurisdiction' },
+            { name: 'jurisdiction2', type: 'str', description: 'Second jurisdiction' }
+          ]
+        },
+        {
+          name: 'generate_bill_report',
+          description: 'Generate comprehensive bill reports',
+          parameters: [
+            { name: 'bill_id', type: 'str', description: 'Bill ID' },
+            { name: 'include_history', type: 'bool', description: 'Include legislative history', default: 'true' }
+          ]
+        },
+        {
+          name: 'query_bills_by_party',
+          description: 'Query bills sponsored by specific party',
+          parameters: [
+            { name: 'party', type: 'str', description: 'Political party' },
             { name: 'jurisdiction', type: 'Optional[str]', description: 'State abbreviation' },
-            { name: 'limit', type: 'int', description: 'Maximum related bills', default: '10' }
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'query_bills_by_person_name',
+          description: 'Query bills sponsored by specific person',
+          parameters: [
+            { name: 'person_name', type: 'str', description: 'Person name' },
+            { name: 'jurisdiction', type: 'Optional[str]', description: 'State abbreviation' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'query_bills_by_year_range',
+          description: 'Query bills within a year range',
+          parameters: [
+            { name: 'start_year', type: 'int', description: 'Start year' },
+            { name: 'end_year', type: 'int', description: 'End year' },
+            { name: 'jurisdiction', type: 'Optional[str]', description: 'State abbreviation' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'query_bills_by_topics',
+          description: 'Query bills by policy topics',
+          parameters: [
+            { name: 'topics', type: 'List[str]', description: 'Policy topics to search' },
+            { name: 'jurisdiction', type: 'Optional[str]', description: 'State abbreviation' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'query_person_voting_record',
+          description: 'Query voting record of a specific person',
+          parameters: [
+            { name: 'person_id', type: 'str', description: 'Person ID' },
+            { name: 'jurisdiction', type: 'Optional[str]', description: 'State abbreviation' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'query_committees',
+          description: 'Query committee information',
+          parameters: [
+            { name: 'jurisdiction', type: 'Optional[str]', description: 'State abbreviation' },
+            { name: 'committee_name', type: 'Optional[str]', description: 'Committee name' }
+          ]
+        },
+        {
+          name: 'search_bills_by_text_content',
+          description: 'Search bills by text content',
+          parameters: [
+            { name: 'search_text', type: 'str', description: 'Text to search for in bill content' },
+            { name: 'jurisdiction', type: 'Optional[str]', description: 'State abbreviation' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
           ]
         }
       ]
@@ -247,13 +468,10 @@ export default function ApiReference() {
           ]
         },
         {
-          name: 'search_documents_advanced',
-          description: 'Advanced document search',
+          name: 'query_govinfo_documents',
+          description: 'Query GovInfo documents with advanced filtering',
           parameters: [
-            { name: 'collection', type: 'Optional[str]', description: 'Collection to search' },
-            { name: 'title', type: 'Optional[str]', description: 'Title search term' },
-            { name: 'date_from', type: 'Optional[str]', description: 'Start date (YYYY-MM-DD)' },
-            { name: 'date_to', type: 'Optional[str]', description: 'End date (YYYY-MM-DD)' },
+            { name: 'filters', type: 'Optional[Dict]', description: 'Query filters' },
             { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
           ]
         },
@@ -267,11 +485,113 @@ export default function ApiReference() {
           ]
         },
         {
+          name: 'get_document_trends',
+          description: 'Get document publication trends',
+          parameters: [
+            { name: 'collection', type: 'Optional[str]', description: 'Collection filter' },
+            { name: 'start_year', type: 'Optional[int]', description: 'Start year' },
+            { name: 'end_year', type: 'Optional[int]', description: 'End year' }
+          ]
+        },
+        {
+          name: 'search_documents_advanced',
+          description: 'Advanced document search',
+          parameters: [
+            { name: 'collection', type: 'Optional[str]', description: 'Collection to search' },
+            { name: 'title', type: 'Optional[str]', description: 'Title search term' },
+            { name: 'date_from', type: 'Optional[str]', description: 'Start date (YYYY-MM-DD)' },
+            { name: 'date_to', type: 'Optional[str]', description: 'End date (YYYY-MM-DD)' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'analyze_document_metadata',
+          description: 'Analyze document metadata patterns',
+          parameters: [
+            { name: 'collection', type: 'Optional[str]', description: 'Collection to analyze' },
+            { name: 'metadata_field', type: 'Optional[str]', description: 'Specific metadata field to analyze' }
+          ]
+        },
+        {
+          name: 'compare_collections',
+          description: 'Compare different document collections',
+          parameters: [
+            { name: 'collection1', type: 'str', description: 'First collection' },
+            { name: 'collection2', type: 'str', description: 'Second collection' },
+            { name: 'metric', type: 'Optional[str]', description: 'Comparison metric', default: 'count' }
+          ]
+        },
+        {
+          name: 'export_govinfo_data',
+          description: 'Export GovInfo data in various formats',
+          parameters: [
+            { name: 'data_type', type: 'str', description: 'Type of data to export' },
+            { name: 'format', type: 'str', description: 'Export format (csv, json)', default: 'csv' },
+            { name: 'filters', type: 'Optional[Dict]', description: 'Export filters' }
+          ]
+        },
+        {
+          name: 'query_documents_by_year_range',
+          description: 'Query documents within a year range',
+          parameters: [
+            { name: 'start_year', type: 'int', description: 'Start year' },
+            { name: 'end_year', type: 'int', description: 'End year' },
+            { name: 'collection', type: 'Optional[str]', description: 'Collection filter' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'query_documents_by_topics',
+          description: 'Query documents by policy topics',
+          parameters: [
+            { name: 'topics', type: 'List[str]', description: 'Policy topics to search' },
+            { name: 'collection', type: 'Optional[str]', description: 'Collection filter' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'query_documents_by_type',
+          description: 'Query documents by publication type',
+          parameters: [
+            { name: 'doc_type', type: 'str', description: 'Document type' },
+            { name: 'collection', type: 'Optional[str]', description: 'Collection filter' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'search_documents_by_text_content',
+          description: 'Search documents by text content',
+          parameters: [
+            { name: 'search_text', type: 'str', description: 'Text to search for in document content' },
+            { name: 'collection', type: 'Optional[str]', description: 'Collection filter' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
           name: 'query_recent_documents',
           description: 'Query recently published documents',
           parameters: [
             { name: 'collection', type: 'Optional[str]', description: 'Collection filter' },
             { name: 'days', type: 'int', description: 'Days back to search', default: '30' },
+            { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
+          ]
+        },
+        {
+          name: 'analyze_document_types',
+          description: 'Analyze document types and their distribution',
+          parameters: [
+            { name: 'collection', type: 'Optional[str]', description: 'Collection to analyze' },
+            { name: 'start_year', type: 'Optional[int]', description: 'Start year' },
+            { name: 'end_year', type: 'Optional[int]', description: 'End year' }
+          ]
+        },
+        {
+          name: 'query_documents_by_metadata_field',
+          description: 'Query documents by specific metadata fields',
+          parameters: [
+            { name: 'field_name', type: 'str', description: 'Metadata field name' },
+            { name: 'field_value', type: 'str', description: 'Field value to match' },
+            { name: 'collection', type: 'Optional[str]', description: 'Collection filter' },
             { name: 'limit', type: 'int', description: 'Maximum results', default: '100' }
           ]
         }
@@ -304,6 +624,19 @@ export default function ApiReference() {
         party: 'text',
         state: 'text',
         district: 'text',
+        raw: 'jsonb'
+      }
+    },
+    congress_votes: {
+      description: 'Congressional voting records',
+      fields: {
+        id: 'text (primary key)',
+        congress: 'smallint',
+        session: 'smallint',
+        vote_number: 'text',
+        date: 'timestamptz',
+        result: 'text',
+        counts: 'jsonb',
         raw: 'jsonb'
       }
     },
@@ -341,6 +674,22 @@ export default function ApiReference() {
         birth_date: 'date',
         death_date: 'date',
         extras: 'jsonb',
+        raw: 'jsonb'
+      }
+    },
+    openstates_events: {
+      description: 'State legislative events and hearings',
+      fields: {
+        id: 'text (primary key)',
+        name: 'text',
+        jurisdiction: 'text',
+        description: 'text',
+        classification: 'text',
+        start_date: 'timestamptz',
+        end_date: 'timestamptz',
+        all_day: 'boolean',
+        status: 'text',
+        location: 'jsonb',
         raw: 'jsonb'
       }
     },

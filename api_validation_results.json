@@ -1,0 +1,22 @@
+{
+  "congress": {
+    "bill_fields": {},
+    "member_fields": {},
+    "missing_fields": [],
+    "extra_fields": [],
+    "type_mismatches": []
+  },
+  "govinfo": {
+    "package_fields": {},
+    "collection_fields": {},
+    "missing_fields": [],
+    "extra_fields": [],
+    "type_mismatches": []
+  },
+  "openstates": {
+    "bill_fields": {},
+    "missing_fields": [],
+    "extra_fields": [],
+    "type_mismatches": []
+  }
+}

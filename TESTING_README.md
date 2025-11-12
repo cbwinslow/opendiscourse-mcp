@@ -252,6 +252,28 @@ def test_api_client_method(mock_session):
 
 ### Integration Tests
 
+- Test complete workflows and component interactions
+- Test error handling and edge cases
+- Validate data flow between components
+- Include security and performance testing
+
+```python
+def test_complete_workflow(client):
+    """Test end-to-end workflow integration."""
+    # Register token
+    response = client.post("/mcp/register_token", json={
+        "site": "congress",
+        "user_id": "test_user",
+        "api_key": "test_key"
+    })
+    assert response.status_code == 200
+
+    # Execute function and verify integration
+    # ... complete workflow testing
+```
+
+### Component Integration Tests
+
 - Test component interactions
 - Use test databases
 - Validate data flow between components
