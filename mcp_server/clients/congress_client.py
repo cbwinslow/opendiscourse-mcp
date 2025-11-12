@@ -14,8 +14,8 @@ class CongressClient(BaseClient):
 
     def search_bills(self, congress: Optional[int] = None, billType: Optional[str] = None, page: int = 1):
         # Congress API uses api.data.gov API key (api_key param)
-        url = f"{self.BASE}/bill"
-        params = {"page": page}
+        url = f"{self.BASE}/v3/bill"
+        params = {"page": page, "limit": 250}  # v3 API uses limit instead of per_page
         if congress:
             params["congress"] = congress
         if billType:

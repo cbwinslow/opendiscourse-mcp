@@ -3,9 +3,11 @@ from pydantic import BaseModel
 from typing import Any, Dict, Optional
 import os
 import subprocess
+from datetime import datetime
 from mcp_server.clients.congress_client import CongressClient
 from mcp_server.clients.openstates_client import OpenStatesClient
 from mcp_server.clients.govinfo_client import GovInfoClient
+from mcp_server.utils.monitoring import monitor, deduplicator
 
 app = FastAPI(title="MCP Server Scaffold")
 
@@ -374,3 +376,49 @@ def get_data_model():
         }
     }
     return schemas
+
+
+# Monitoring endpoints
+@app.get("/mcp/ingestion/jobs")
+def get_ingestion_jobs(status: Optional[str] = None):
+    """Get all ingestion jobs, optionally filtered by status."""
+    return monitor.get_all_jobs(status)
+
+
+@app.get("/mcp/ingestion/jobs/{job_id}")
+def get_ingestion_job(job_id: str):
+    """Get a specific ingestion job by ID."""
+    job = monitor.get_job_status(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    return job
+
+
+@app.post("/mcp/ingestion/start")
+def start_ingestion_job(source: str, collection: str, **metadata):
+    """Start a new ingestion job."""
+    try:
+        job_id = monitor.create_job(source, collection, **metadata)
+        return {"job_id": job_id, "status": "created"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
+
+
+@app.delete("/mcp/ingestion/cleanup")
+def cleanup_old_data(days: int = 30):
+    """Clean up old ingestion data and hashes."""
+    try:
+        deduplicator.cleanup_old_hashes(days)
+        return {"status": "success", "message": f"Cleaned up data older than {days} days"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+
+
+@app.get("/mcp/health")
+def health_check():
+    """Health check endpoint."""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "version": "1.0.0"
+    }

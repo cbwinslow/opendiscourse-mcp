@@ -11,6 +11,7 @@ import psycopg2
 from psycopg2.extras import Json
 from mcp_server.db import get_sqlalchemy_engine, get_raw_connection
 from mcp_server.utils.db_copy import copy_dataframe_to_table
+from mcp_server.utils.monitoring import monitor, deduplicator
 import pandas as pd
 from mcp_server.clients.openstates_client import OpenStatesClient
 from mcp_server.utils.ingest import json_results_to_dataframe
@@ -62,72 +63,98 @@ def normalize_bill(bill: dict) -> dict:
 
 
 def ingest_bills(api_key: str, jurisdiction: str = None, q: str = None, page: int = 1, per_page: int = 50):
-    client = OpenStatesClient(api_key=api_key)
-    use_copy = bool(os.getenv('USE_COPY', '') )
-    use_sqlalchemy = bool(os.getenv('USE_SQLALCHEMY', ''))
+    # Create monitoring job
+    job_id = monitor.create_job(
+        source='openstates',
+        collection=f'bills_{jurisdiction or "all"}_{q or "all"}',
+        api_key=api_key[:8] + '...',  # Partial key for logging
+        jurisdiction=jurisdiction,
+        query=q
+    )
 
-    buffer_rows = []
-    conn = None
-    raw_conn = None
-    if use_sqlalchemy:
-        engine = get_sqlalchemy_engine()
-    else:
-        conn = connect_db(DB_URL)
-        cur = conn.cursor()
+    with monitor.monitor_job(job_id):
+        client = OpenStatesClient(api_key=api_key)
+        use_copy = bool(os.getenv('USE_COPY', '') )
+        use_sqlalchemy = bool(os.getenv('USE_SQLALCHEMY', ''))
 
-    while True:
-        res = client.search_bills(jurisdiction=jurisdiction, q=q, page=page, per_page=per_page)
-        results = res.get('results') or res.get('data') or res.get('results', [])
-        if not results:
-            break
+        buffer_rows = []
+        conn = None
+        raw_conn = None
+        if use_sqlalchemy:
+            engine = get_sqlalchemy_engine()
+        else:
+            conn = connect_db(DB_URL)
+            cur = conn.cursor()
 
-        df_rows = []
-        for b in results:
-            row = normalize_bill(b)
-            if use_copy:
-                df_rows.append({
-                    'id': row['id'],
-                    'session': row['session'],
-                    'jurisdiction': row['jurisdiction'],
-                    'identifier': row['identifier'],
-                    'title': row['title'],
-                    'classification': '{' + ','.join(row['classification']) + '}' if row['classification'] else None,
-                    'subjects': '{' + ','.join(row['subject']) + '}' if row['subject'] else None,
-                    'created_at': row['created_at'],
-                    'updated_at': row['updated_at'],
-                    'first_action_date': row['first_action_date'],
-                    'latest_action_date': row['latest_action_date'],
-                    'latest_action_description': row['latest_action_description'],
-                    'openstates_url': row['openstates_url'],
+        total_ingested = 0
+        duplicates_found = 0
+
+        while True:
+            res = client.search_bills(jurisdiction=jurisdiction, q=q, page=page, per_page=per_page)
+            results = res.get('results') or res.get('data') or res.get('results', [])
+            if not results:
+                break
+
+            df_rows = []
+            for b in results:
+                row = normalize_bill(b)
+
+                # Check for duplicates using content hashing
+                content_hash = deduplicator.get_content_hash(row, exclude_fields=['raw'])
+                if deduplicator.is_duplicate('openstates_bills', content_hash, row['id']):
+                    duplicates_found += 1
+                    continue
+
+                if use_copy:
+                    df_rows.append({
+                        'id': row['id'],
+                        'session': row['session'],
+                        'jurisdiction': row['jurisdiction'],
+                        'identifier': row['identifier'],
+                        'title': row['title'],
+                        'classification': '{' + ','.join(row['classification']) + '}' if row['classification'] else None,
+                        'subjects': '{' + ','.join(row['subject']) + '}' if row['subject'] else None,
+                        'created_at': row['created_at'],
+                        'updated_at': row['updated_at'],
+                        'first_action_date': row['first_action_date'],
+                        'latest_action_date': row['latest_action_date'],
+                        'latest_action_description': row['latest_action_description'],
+                        'openstates_url': row['openstates_url'],
+                    })
+                elif use_sqlalchemy:
+                    # SQLAlchemy path - use engine.execute with parameterized statements
+                    with engine.begin() as connection:
+                        connection.execute(UPSERT_BILL_SQL, row)
+                else:
+                    cur.execute(UPSERT_BILL_SQL, row)
+
+            if use_copy and df_rows:
+                df = pd.DataFrame(df_rows)
+                raw_conn = get_raw_connection()
+                copy_dataframe_to_table(raw_conn, df, 'openstates_bills', {
+                    'id': 'id', 'session': 'session', 'jurisdiction': 'jurisdiction', 'identifier': 'identifier',
+                    'title': 'title', 'classification': 'classification', 'subjects': 'subjects', 'created_at': 'created_at',
+                    'updated_at': 'updated_at', 'first_action_date': 'first_action_date', 'latest_action_date': 'latest_action_date',
+                    'latest_action_description': 'latest_action_description', 'openstates_url': 'openstates_url'
                 })
-            elif use_sqlalchemy:
-                # SQLAlchemy path - use engine.execute with parameterized statements
-                with engine.begin() as connection:
-                    connection.execute(UPSERT_BILL_SQL, row)
-            else:
-                cur.execute(UPSERT_BILL_SQL, row)
+                raw_conn.close()
 
-        if use_copy and df_rows:
-            df = pd.DataFrame(df_rows)
-            raw_conn = get_raw_connection()
-            copy_dataframe_to_table(raw_conn, df, 'openstates_bills', {
-                'id': 'id', 'session': 'session', 'jurisdiction': 'jurisdiction', 'identifier': 'identifier',
-                'title': 'title', 'classification': 'classification', 'subjects': 'subjects', 'created_at': 'created_at',
-                'updated_at': 'updated_at', 'first_action_date': 'first_action_date', 'latest_action_date': 'latest_action_date',
-                'latest_action_description': 'latest_action_description', 'openstates_url': 'openstates_url'
-            })
-            raw_conn.close()
+            if not use_sqlalchemy and not use_copy:
+                conn.commit()
+
+            total_ingested += len(results)
+            monitor.update_progress(job_id, total_ingested, duplicates_found)
+            print(f"Ingested {len(results)} bills (total: {total_ingested}, duplicates: {duplicates_found})")
+
+            if len(results) < per_page:
+                break
+            page += 1
 
         if not use_sqlalchemy and not use_copy:
-            conn.commit()
+            cur.close()
+            conn.close()
 
-        if len(results) < per_page:
-            break
-        page += 1
-
-    if not use_sqlalchemy and not use_copy:
-        cur.close()
-        conn.close()
+        print(f"Ingestion complete. Total bills processed: {total_ingested}, duplicates found: {duplicates_found}")
 
 
 if __name__ == '__main__':
