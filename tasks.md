@@ -235,7 +235,28 @@ These enhance the core functionality with better usability and performance.
 #### Client Data Methods
 - **`query_bills`**: Query bills from database with filtering options
 - **`export_bills`**: Export bills data to CSV, Parquet, or JSON formats
-- **`ingest_bills`**: Trigger ingestion of bills data (via MCP endpoint)
+- **`analyze_bill_sponsors`**: Analyze bill sponsorship patterns and statistics
+- **`find_related_bills`**: Find bills related by sponsors, subjects, or keywords
+- **`get_legislative_trends`**: Analyze legislative activity trends over time
+- **`search_bills_advanced`**: Advanced bill search with multiple criteria
+- **`get_bill_statistics`**: Get comprehensive statistics on bill data
+- **`export_filtered_data`**: Export data with advanced filtering options
+- **`compare_legislatures`**: Compare legislative activity between jurisdictions
+- **`generate_bill_report`**: Generate detailed reports for specific bills
+- **`query_congress_bills`**: Query Congress bills with filtering
+- **`analyze_bill_sponsors_congress`**: Analyze Congress bill sponsorship patterns
+- **`get_congressional_trends`**: Analyze congressional activity by congress number
+- **`search_congress_bills_advanced`**: Advanced search for Congress bills
+- **`analyze_member_activity`**: Analyze legislative activity for members
+- **`compare_congresses`**: Compare activity between different congresses
+- **`export_congress_data`**: Export Congress data with filtering
+- **`query_govinfo_documents`**: Query GovInfo documents from database
+- **`analyze_document_collections`**: Analyze document distribution across collections
+- **`get_document_trends`**: Analyze document publication trends over time
+- **`search_documents_advanced`**: Advanced search for GovInfo documents
+- **`analyze_document_metadata`**: Analyze metadata patterns in documents
+- **`compare_collections`**: Compare document characteristics between collections
+- **`export_govinfo_data`**: Export GovInfo documents with filtering
 
 ### Completion Criteria for Task 6
 - pytest suite passes.

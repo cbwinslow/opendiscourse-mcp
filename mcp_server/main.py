@@ -89,16 +89,31 @@ def execute_function(payload: ExecuteRequest):
         "congress": [
             "search_bills", "get_bill", "get_bill_actions", "get_bill_text",
             "list_members", "get_member", "bulk_download_collection",
-            "query_bills", "export_bills"
+            "query_congress_bills", "analyze_bill_sponsors_congress",
+            "get_congressional_trends", "search_congress_bills_advanced",
+            "analyze_member_activity", "compare_congresses", "export_congress_data",
+            "query_bills_by_party", "query_bills_by_member_name", "query_bills_by_year_range",
+            "query_bills_by_topics", "query_member_voting_record", "query_committee_members",
+            "search_bills_by_text_content"
         ],
         "openstates": [
             "search_bills", "get_bill", "search_people", "get_person",
             "search_events", "get_event", "get_openapi_schema",
-            "query_bills", "export_bills"
+            "query_bills", "export_bills", "analyze_bill_sponsors",
+            "find_related_bills", "get_legislative_trends", "search_bills_advanced",
+            "get_bill_statistics", "export_filtered_data", "compare_legislatures",
+            "generate_bill_report", "query_bills_by_party", "query_bills_by_person_name",
+            "query_bills_by_year_range", "query_bills_by_topics", "query_person_voting_record",
+            "query_committees", "search_bills_by_text_content"
         ],
         "govinfo": [
             "list_collections", "bulk_download", "fetch_bulk_file", "ingest_xml_to_df",
-            "query_documents", "export_documents"
+            "query_govinfo_documents", "analyze_document_collections",
+            "get_document_trends", "search_documents_advanced",
+            "analyze_document_metadata", "compare_collections", "export_govinfo_data",
+            "query_documents_by_year_range", "query_documents_by_topics",
+            "query_documents_by_type", "search_documents_by_text_content",
+            "query_recent_documents", "analyze_document_types", "query_documents_by_metadata_field"
         ],
     }
 
