@@ -100,7 +100,7 @@ class MonitoringFramework:
         return logger
     
     def _setup_opentelemetry(self):
-        """Initialize OpenTelemetry"""
+        """Initialize OpenTelemetry with remote endpoint"""
         try:
             from opentelemetry import trace, metrics
             from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -109,19 +109,33 @@ class MonitoringFramework:
             from opentelemetry.sdk.metrics import MeterProvider
             from opentelemetry.sdk.resources import Resource
             
+            # Remote endpoint configuration
+            otlp_endpoint = os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://cbwdellr720:4318')
+            otlp_headers = os.getenv('OTEL_EXPORTER_OTLP_HEADERS', '')
+            
             # Configure OpenTelemetry
             resource = Resource.create({
                 "service.name": "opendiscourse-ingestion",
                 "service.version": "1.0.0",
-                "deployment.environment": os.getenv("ENVIRONMENT", "development")
+                "deployment.environment": os.getenv("ENVIRONMENT", "production"),
+                "host.name": "laptop",
+                "monitoring.server": "cbwdellr720"
             })
             
-            # Setup tracing
-            trace.set_tracer_provider(TracerProvider(resource=resource))
+            # Setup tracing with remote endpoint
+            trace_exporter = OTLPSpanExporter(
+                endpoint=otlp_endpoint,
+                headers={"Authorization": otlp_headers} if otlp_headers else None
+            )
+            trace.set_tracer_provider(TracerProvider(resource=resource, span_exporters=[trace_exporter]))
             tracer = trace.get_tracer(__name__)
             
-            # Setup metrics
-            metrics.set_meter_provider(MeterProvider(resource=resource))
+            # Setup metrics with remote endpoint
+            metrics_exporter = OTLPMetricExporter(
+                endpoint=otlp_endpoint,
+                headers={"Authorization": otlp_headers} if otlp_headers else None
+            )
+            metrics.set_meter_provider(MeterProvider(resource=resource, metric_exporters=[metrics_exporter]))
             meter = metrics.get_meter(__name__)
             
             self.tracer = tracer
@@ -137,7 +151,7 @@ class MonitoringFramework:
                 description="Duration of ingestion operations"
             )
             
-            self.logger.info("OpenTelemetry initialized")
+            self.logger.info(f"OpenTelemetry initialized with remote endpoint: {otlp_endpoint}")
             
         except ImportError:
             self.logger.warning("OpenTelemetry packages not installed")
@@ -145,30 +159,45 @@ class MonitoringFramework:
             self.logger.error(f"Failed to initialize OpenTelemetry: {e}")
     
     def _setup_prometheus(self):
-        """Initialize Prometheus metrics"""
+        """Initialize Prometheus metrics with remote gateway"""
         try:
-            from prometheus_client import Counter, Histogram, Gauge, start_http_server
+            from prometheus_client import Counter, Histogram, Gauge, start_http_server, CollectorRegistry, push_to_gateway
+            
+            # Create custom registry for remote pushing
+            self.prom_registry = CollectorRegistry()
             
             # Create Prometheus metrics
             self.prom_records_total = Counter(
                 'opendiscourse_ingestion_records_total',
                 'Total records ingested',
-                ['congress', 'data_type', 'status']
+                ['congress', 'data_type', 'status', 'source_host'],
+                registry=self.prom_registry
             )
             self.prom_duration = Histogram(
                 'opendiscourse_ingestion_duration_seconds',
                 'Ingestion duration in seconds',
-                ['congress', 'data_type']
+                ['congress', 'data_type', 'source_host'],
+                registry=self.prom_registry
             )
             self.prom_active_jobs = Gauge(
                 'opendiscourse_active_ingestion_jobs',
-                'Number of active ingestion jobs'
+                'Number of active ingestion jobs',
+                ['source_host'],
+                registry=self.prom_registry
             )
             
-            # Start Prometheus server
+            # Remote Prometheus gateway configuration
+            prometheus_gateway = os.getenv('PROMETHEUS_GATEWAY_URL', 'http://cbwdellr720:8889')
+            
+            # Start local Prometheus server for backup
             prometheus_port = int(os.getenv('PROMETHEUS_PORT', '8000'))
-            start_http_server(prometheus_port)
-            self.logger.info(f"Prometheus server started on port {prometheus_port}")
+            start_http_server(prometheus_port, registry=self.prom_registry)
+            
+            # Setup remote pushing function
+            self.prometheus_gateway = prometheus_gateway
+            
+            self.logger.info(f"Prometheus initialized with remote gateway: {prometheus_gateway}")
+            self.logger.info(f"Local Prometheus server on port {prometheus_port}")
             
         except ImportError:
             self.logger.warning("Prometheus client not installed")
