@@ -1,0 +1,130 @@
+# Prometheus Alert Rules for OpenDiscourse
+groups:
+  - name: opendiscourse-ingestion-alerts
+    rules:
+      # Alert on slow running ingestion jobs
+      - alert: IngestionJobRunningTooLong
+        expr: time() - opendiscourse_active_ingestion_jobs > 1800
+        for: 5m
+        labels:
+          severity: warning
+          service: opendiscourse-ingestion
+        annotations:
+          summary: "Ingestion job running for more than 30 minutes"
+          description: "Job {{ $labels.job_id }} has been running for {{ $value }} seconds"
+
+      # Alert on high error rates
+      - alert: HighIngestionErrorRate
+        expr: rate(opendiscourse_ingestion_records_total{status="error"}[5m]) / rate(opendiscourse_ingestion_records_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          service: opendiscourse-ingestion
+        annotations:
+          summary: "High ingestion error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+
+      # Alert on no ingestion activity
+      - alert: NoIngestionActivity
+        expr: increase(opendiscourse_ingestion_records_total[10m]) == 0
+        for: 15m
+        labels:
+          severity: warning
+          service: opendiscourse-ingestion
+        annotations:
+          summary: "No ingestion activity detected"
+          description: "No records have been ingested in the last 10 minutes"
+
+      # Alert on slow database operations
+      - alert: SlowDatabaseOperations
+        expr: histogram_quantile(0.95, rate(opendiscourse_ingestion_duration_seconds_bucket[5m])) > 5.0
+        for: 3m
+        labels:
+          severity: warning
+          service: opendiscourse-database
+        annotations:
+          summary: "Slow database operations detected"
+          description: "95th percentile latency is {{ $value }}s"
+
+  - name: opendiscourse-system-alerts
+    rules:
+      # Alert on high CPU usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: opendiscourse-system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% on instance {{ $labels.instance }}"
+
+      # Alert on high memory usage
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: opendiscourse-system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% on instance {{ $labels.instance }}"
+
+      # Alert on low disk space
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100 < 10
+        for: 1m
+        labels:
+          severity: critical
+          service: opendiscourse-system
+        annotations:
+          summary: "Low disk space detected"
+          description: "Disk space is {{ $value }}% on mount {{ $labels.mountpoint }}"
+
+  - name: opendiscourse-data-quality-alerts
+    rules:
+      # Alert on low data quality pass rate
+      - alert: LowDataQualityPassRate
+        expr: opendiscourse_data_quality_pass_rate < 95
+        for: 10m
+        labels:
+          severity: warning
+          service: opendiscourse-data-quality
+        annotations:
+          summary: "Low data quality pass rate"
+          description: "Data quality pass rate is {{ $value }}% for table {{ $labels.table_name }}"
+
+      # Alert on duplicate records
+      - alert: HighDuplicateRate
+        expr: rate(opendiscourse_duplicates_found_total[5m]) / rate(opendiscourse_ingestion_records_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: opendiscourse-deduplication
+        annotations:
+          summary: "High duplicate record rate"
+          description: "Duplicate rate is {{ $value | humanizePercentage }}"
+
+  - name: opendiscourse-connectivity-alerts
+    rules:
+      # Alert on Cloudflare tunnel disconnection
+      - alert: CloudflareTunnelDown
+        expr: up{job="cloudflare-tunnels"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: cloudflare-tunnel
+        annotations:
+          summary: "Cloudflare tunnel is down"
+          description: "Cloudflare tunnel {{ $labels.instance }} is not responding"
+
+      # Alert on database connection issues
+      - alert: DatabaseConnectionIssues
+        expr: up{job="opendiscourse-database"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: opendiscourse-database
+        annotations:
+          summary: "Database exporter is down"
+          description: "Cannot connect to database metrics exporter"

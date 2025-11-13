@@ -1,0 +1,70 @@
+# Prometheus configuration for OpenDiscourse monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  # OpenDiscourse Ingestion Metrics
+  - job_name: 'opendiscourse-ingestion'
+    static_configs:
+      - targets: ['localhost:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Database Metrics (postgres_exporter)
+  - job_name: 'opendiscourse-database'
+    static_configs:
+      - targets: ['localhost:9187']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # System Metrics (node_exporter)
+  - job_name: 'opendiscourse-system'
+    static_configs:
+      - targets: ['localhost:9100']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Cloudflare Tunnel Metrics
+  - job_name: 'cloudflare-tunnels'
+    static_configs:
+      - targets: ['localhost:9099']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # OpenTelemetry Collector
+  - job_name: 'opendiscourse-otel'
+    static_configs:
+      - targets: ['localhost:8888']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Application Metrics (if running on different ports)
+  - job_name: 'opendiscourse-apps'
+    static_configs:
+      - targets: 
+        - 'localhost:5000'  # Main app
+        - 'localhost:5001'  # API service
+        - 'localhost:5002'  # Worker processes
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+# Remote write configuration for cloudcurio.cc
+remote_write:
+  - url: "https://cloudcurio.cc/api/v1/write"
+    headers:
+      Authorization: "Bearer ${CLOUDCURIO_TOKEN}"
+    queue_config:
+      max_samples_per_send: 1000
+      max_shards: 200
+      capacity: 2500

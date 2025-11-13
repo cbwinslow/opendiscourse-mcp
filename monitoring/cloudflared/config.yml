@@ -1,0 +1,57 @@
+# Cloudflare Tunnel configuration for OpenDiscourse
+# Provides secure access to monitoring and application endpoints
+
+tunnel: opendiscourse-ingestion-tunnel
+credentials-file: /etc/cloudflared/cert.pem
+
+ingress:
+  # Prometheus metrics endpoint
+  - hostname: prometheus.opendiscourse.com
+    service: http://localhost:8000
+    originRequest:
+      noTLSVerify: true
+
+  # Grafana dashboard
+  - hostname: grafana.opendiscourse.com
+    service: http://localhost:3000
+    originRequest:
+      noTLSVerify: true
+
+  # OpenTelemetry collector
+  - hostname: otlp.opendiscourse.com
+    service: http://localhost:4318
+    originRequest:
+      noTLSVerify: true
+
+  # Loki log aggregation
+  - hostname: loki.opendiscourse.com
+    service: http://localhost:3100
+    originRequest:
+      noTLSVerify: true
+
+  # AlertManager
+  - hostname: alerts.opendiscourse.com
+    service: http://localhost:9093
+    originRequest:
+      noTLSVerify: true
+
+  # PostgreSQL database (restricted access)
+  - hostname: db.opendiscourse.com
+    service: tcp://100.90.23.60:5432
+    originRequest:
+      noTLSVerify: true
+
+  # Application API
+  - hostname: api.opendiscourse.com
+    service: http://localhost:5000
+    originRequest:
+      noTLSVerify: true
+
+  # Web interface
+  - hostname: app.opendiscourse.com
+    service: http://localhost:8080
+    originRequest:
+      noTLSVerify: true
+
+  # Catch-all service
+  - service: http_status:404

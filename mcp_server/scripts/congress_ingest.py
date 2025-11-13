@@ -1,4 +1,5 @@
 """Congress.gov ingestion script: fetch bills via CongressClient and upsert into Postgres.
+Enhanced with comprehensive monitoring, observability, and feature flags.
 
 Usage:
   export DATABASE_URL=postgresql://user:pass@localhost:5432/dbname
@@ -12,7 +13,12 @@ from mcp_server.clients.congress_client import CongressClient
 from mcp_server.db import get_sqlalchemy_engine, get_raw_connection
 from mcp_server.utils.db_copy import copy_dataframe_to_table
 from mcp_server.utils.monitoring import monitor, deduplicator
+from mcp_server.utils.monitoring_framework import (
+    FeatureFlags, get_monitor, monitor_ingestion, benchmark_function
+)
 import pandas as pd
+import time
+import json
 
 DB_URL = os.getenv("DATABASE_URL")
 
@@ -71,9 +77,27 @@ def normalize_congress_bill(congress: int, bill_obj: dict) -> dict:
     }
 
 
+@monitor_ingestion(data_type="bills", congress=None)
+@benchmark_function
 def ingest_bills(api_key: str, congress: int = None, billType: str = None, page: int = 1, max_pages: int = 10):
+    # Initialize monitoring framework
+    monitor_framework = get_monitor()
+    flags = FeatureFlags.from_env()
+    
     # Create monitoring job
-    job_id = monitor.create_job(
+    job_id = f"congress_bills_{congress or 'all'}_{billType or 'all'}_{int(time.time())}"
+    
+    # Set database job context for triggers
+    conn = get_raw_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT set_ingestion_job_context(%s)", (job_id,))
+            conn.commit()
+    except Exception as e:
+        monitor_framework.logger.warning(f"Failed to set job context: {e}")
+    
+    # Create legacy monitoring job for compatibility
+    job_id_legacy = monitor.create_job(
         source='congress',
         collection=f'bills_{congress or "all"}_{billType or "all"}',
         api_key=api_key[:8] + '...',  # Partial key for logging
@@ -81,7 +105,7 @@ def ingest_bills(api_key: str, congress: int = None, billType: str = None, page:
         bill_type=billType
     )
 
-    with monitor.monitor_job(job_id):
+    with monitor.monitor_job(job_id_legacy):
         client = CongressClient(api_key=api_key)
         use_copy = bool(os.getenv('USE_COPY', '') )
         use_sqlalchemy = bool(os.getenv('USE_SQLALCHEMY', ''))

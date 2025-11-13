@@ -228,6 +228,19 @@ class UnifiedIngester:
         env = os.environ.copy()
         env['PYTHONPATH'] = str(Path(__file__).parent)
         
+        # Ensure DATABASE_URL uses container IP if not already set
+        if 'DATABASE_URL' not in env or 'localhost' in env.get('DATABASE_URL', ''):
+            try:
+                import subprocess
+                docker_result = subprocess.run(['docker', 'inspect', 'mcp-postgres', '--format={{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'], 
+                                      capture_output=True, text=True, check=True)
+                container_ip = docker_result.stdout.strip()
+                if container_ip:
+                    env['DATABASE_URL'] = f"postgresql://opendiscourse:opendiscourse123@{container_ip}:5432/opendiscourse"
+            except Exception:
+                # Fallback to localhost if Docker command fails
+                env['DATABASE_URL'] = "postgresql://opendiscourse:opendiscourse123@localhost:5432/opendiscourse"
+        
         cmd = [
             'python', str(script_path),
             '--congress', str(congress)
@@ -259,17 +272,17 @@ class UnifiedIngester:
                     result.success = True
                     # Try to extract record count from output
                     output = result_process.stdout
-                    if "records" in output.lower():
+                    if "records" in output.lower() or "ingested" in output.lower() or "processed" in output.lower():
                         # Simple parsing - could be enhanced
                         lines = output.split('\n')
                         for line in lines:
-                            if 'records' in line.lower() or 'processed' in line.lower():
+                            if 'records' in line.lower() or 'processed' in line.lower() or 'ingested' in line.lower():
                                 try:
                                     # Extract numbers from line
                                     import re
                                     numbers = re.findall(r'\d+', line)
                                     if numbers:
-                                        result.records_processed = int(numbers[-1])
+                                        result.records_processed = int(numbers[0])  # Take first number
                                         break
                                 except:
                                     pass
@@ -306,6 +319,19 @@ class UnifiedIngester:
         # Build command with environment
         env = os.environ.copy()
         env['PYTHONPATH'] = str(Path(__file__).parent)
+        
+        # Ensure DATABASE_URL uses container IP if not already set
+        if 'DATABASE_URL' not in env or 'localhost' in env.get('DATABASE_URL', ''):
+            try:
+                import subprocess
+                docker_result = subprocess.run(['docker', 'inspect', 'mcp-postgres', '--format={{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'], 
+                                      capture_output=True, text=True, check=True)
+                container_ip = docker_result.stdout.strip()
+                if container_ip:
+                    env['DATABASE_URL'] = f"postgresql://opendiscourse:opendiscourse123@{container_ip}:5432/opendiscourse"
+            except Exception:
+                # Fallback to localhost if Docker command fails
+                env['DATABASE_URL'] = "postgresql://opendiscourse:opendiscourse123@localhost:5432/opendiscourse"
         
         cmd = ['python', str(script_path), '--collection', collection]
         if year:
@@ -375,6 +401,19 @@ class UnifiedIngester:
         # Build command with environment
         env = os.environ.copy()
         env['PYTHONPATH'] = str(Path(__file__).parent)
+        
+        # Ensure DATABASE_URL uses container IP if not already set
+        if 'DATABASE_URL' not in env or 'localhost' in env.get('DATABASE_URL', ''):
+            try:
+                import subprocess
+                docker_result = subprocess.run(['docker', 'inspect', 'mcp-postgres', '--format={{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'], 
+                                      capture_output=True, text=True, check=True)
+                container_ip = docker_result.stdout.strip()
+                if container_ip:
+                    env['DATABASE_URL'] = f"postgresql://opendiscourse:opendiscourse123@{container_ip}:5432/opendiscourse"
+            except Exception:
+                # Fallback to localhost if Docker command fails
+                env['DATABASE_URL'] = "postgresql://opendiscourse:opendiscourse123@localhost:5432/opendiscourse"
         
         cmd = ['python', str(script_path)]
         if jurisdiction:
