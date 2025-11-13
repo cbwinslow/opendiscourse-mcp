@@ -8,11 +8,11 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
           <div className="text-center">
             <h1 className="text-5xl md:text-6xl font-bold mb-6">
-              MCP Legislative Data Server
+              OpenDiscourse Platform
             </h1>
             <p className="text-xl md:text-2xl mb-8 text-blue-100 max-w-3xl mx-auto">
-              Comprehensive API for legislative data analysis across Congress.gov, OpenStates, and GovInfo.
-              Access, analyze, and export legislative information with powerful querying and analytics capabilities.
+              Comprehensive platform for legislative data analysis and personal productivity monitoring.
+              Access unified legislative data APIs and advanced personal monitoring with AI-powered insights.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
@@ -27,6 +27,12 @@ export default function Home() {
               >
                 View API Reference
               </Link>
+              <Link
+                href="/workflows"
+                className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors"
+              >
+                View Workflows
+              </Link>
             </div>
           </div>
         </div>
@@ -36,23 +42,61 @@ export default function Home() {
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Powerful Legislative Data Access</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Complete Data & Monitoring Platform</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Access comprehensive legislative data from multiple sources with advanced querying, analytics, and export capabilities.
+              Unified legislative data access combined with personal productivity monitoring and AI-powered insights for comprehensive analysis.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Congress.gov API */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Unified Ingestion */}
             <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Unified Ingestion</h3>
+              <p className="text-gray-600 mb-4">
+                Complete legislative data ingestion from Congress.gov, OpenStates, and GovInfo with unified API.
+              </p>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• Multi-source data integration</li>
+                <li>• Automated bulk processing</li>
+                <li>• Real-time monitoring</li>
+                <li>• Performance optimization</li>
+              </ul>
+            </div>
+
+            {/* Personal Monitoring */}
+            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Personal Monitoring</h3>
+              <p className="text-gray-600 mb-4">
+                AI-powered personal productivity monitoring with activity tracking and intelligent insights.
+              </p>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• Application usage tracking</li>
+                <li>• Screen capture analysis</li>
+                <li>• AI-powered summaries</li>
+                <li>• Productivity insights</li>
+              </ul>
+            </div>
+
+            {/* Congress.gov API */}
+            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Congress.gov API</h3>
               <p className="text-gray-600 mb-4">
-                Access federal legislative data including bills, members, committees, and legislative actions.
+                Federal legislative data including bills, members, committees, and legislative actions.
               </p>
               <ul className="text-sm text-gray-600 space-y-1">
                 <li>• Bill search and details</li>
@@ -64,9 +108,9 @@ export default function Home() {
 
             {/* OpenStates API */}
             <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">OpenStates API</h3>
@@ -80,25 +124,6 @@ export default function Home() {
                 <li>• Legislative events</li>
               </ul>
             </div>
-
-            {/* GovInfo API */}
-            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">GovInfo API</h3>
-              <p className="text-gray-600 mb-4">
-                Official publications from all three branches of government, including statutes and regulations.
-              </p>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• Public laws and statutes</li>
-                <li>• Federal Register</li>
-                <li>• Congressional Record</li>
-                <li>• Bulk XML downloads</li>
-              </ul>
-            </div>
           </div>
         </div>
       </section>
@@ -107,10 +132,49 @@ export default function Home() {
       <section className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Advanced Analytics & Export</h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Powerful querying, analysis, and export capabilities to turn legislative data into actionable insights.
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Ready to Get Started?</h2>
+            <p className="text-lg text-gray-600 mb-8">
+              Explore our comprehensive workflows for unified data ingestion and personal monitoring systems.
             </p>
+            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-8">
+              <div className="flex items-center justify-center space-x-4 text-sm text-gray-600 mb-4">
+                <span className="flex items-center">
+                  <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Choose Your System
+                </span>
+                <span className="flex items-center">
+                  <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Follow Workflow Guide
+                </span>
+                <span className="flex items-center">
+                  <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Start Using Platform
+                </span>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link
+                  href="/workflows"
+                  className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  View Workflows
+                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+                <Link
+                  href="/getting-started"
+                  className="inline-flex items-center px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                >
+                  Getting Started Guide
+                </Link>
+              </div>
+            </div>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -120,8 +184,8 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Advanced Querying</h3>
-              <p className="text-gray-600 text-sm">Complex searches with multiple criteria and filters</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Advanced Analytics</h3>
+              <p className="text-gray-600 text-sm">Statistical analysis and trend identification</p>
             </div>
 
             <div className="text-center">
@@ -130,8 +194,8 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Data Analytics</h3>
-              <p className="text-gray-600 text-sm">Statistical analysis and trend identification</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Monitoring</h3>
+              <p className="text-gray-600 text-sm">AI-powered activity tracking and insights</p>
             </div>
 
             <div className="text-center">
