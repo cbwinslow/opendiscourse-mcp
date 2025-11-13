@@ -4,10 +4,10 @@
 
 set -e
 
-REMOTE_SERVER="cbwdellr720"
+REMOTE_SERVER="100.90.23.60"
 REMOTE_USER="cbwinslow"
 REMOTE_DIR="/home/cbwinslow/opendiscourse-monitoring"
-SSH_KEY="$HOME/.ssh/id_rsa"
+SSH_KEY="$HOME/.ssh/id_ed25519"
 
 echo "🚀 Deploying monitoring stack to $REMOTE_SERVER..."
 
