@@ -33,16 +33,27 @@ try:
     conn = psycopg2.connect('$DB_URL')
     cur = conn.cursor()
 
-    # Get latest job for this congress and data type
-    cur.execute('''
-        SELECT status, processed_records, total_records, created_at, updated_at
-        FROM ingestion_jobs
-        WHERE source = 'congress' AND collection LIKE %s
-        ORDER BY created_at DESC
-        LIMIT 1
-    ''', (f'{data_type}%{congress}%',))
+    # Try different collection name patterns
+    patterns = [
+        f'{data_type}_{congress}',           # bills_118
+        f'{data_type}_{congress}_all',       # bills_118_all, committees_118_all
+        f'{data_type}_{congress}_all_all'    # members_118_all_all
+    ]
 
-    result = cur.fetchone()
+    result = None
+    for pattern in patterns:
+        cur.execute('''
+            SELECT status, processed_records, total_records, created_at, updated_at
+            FROM ingestion_jobs
+            WHERE source = 'congress' AND collection = %s
+            ORDER BY created_at DESC
+            LIMIT 1
+        ''', (pattern,))
+
+        result = cur.fetchone()
+        if result:
+            break
+
     if result:
         status, processed, total, created, updated = result
         print(f'{status}|{processed or 0}|{total or 0}|{created.strftime(\"%Y-%m-%d %H:%M\")}|{updated.strftime(\"%Y-%m-%d %H:%M\")}')
