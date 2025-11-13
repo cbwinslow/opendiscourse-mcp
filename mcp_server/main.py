@@ -160,11 +160,31 @@ def ingest_data(payload: IngestionRequest):
 
     script_path = script_map[site]
 
+    # Define allowlists for command-line argument keys per site
+    allowed_query_keys = {
+        "openstates": {"session", "state", "district", "chamber"},   # Example keys; update as appropriate
+        "congress": {"chamber", "session", "member"},                # Example keys; update as appropriate
+        "govinfo": {"collection", "doc", "year"}                    # Example keys; update as appropriate
+    }
+    allowed_keys = allowed_query_keys.get(site, set())
+
     # Build command arguments
     cmd = ["python", script_path]
 
-    # Add query parameters as command line args
+    # Add query parameters as command line args, validating keys
     for key, value in query_params.items():
+        # Only process allowed/safe keys
+        if key not in allowed_keys:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid query parameter: {key!r} for site {site}"
+            )
+        # Additional key format validation: alphanumeric, underscores, dashes only
+        if not isinstance(key, str) or not key.replace("_", "").replace("-", "").isalnum():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsafe query parameter key: {key!r}"
+            )
         if isinstance(value, bool):
             if value:
                 cmd.append(f"--{key}")
