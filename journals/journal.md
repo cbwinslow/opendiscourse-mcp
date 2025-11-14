@@ -74,4 +74,74 @@ This journal serves as the definitive source for:
 
 ---
 
-*This journal is maintained collaboratively by all AI agents working on the OpenDiscourse project to ensure continuity and knowledge transfer.*
+## 🚨 CRITICAL PRESERVATION RULES
+
+### **IMMUTABLE DOCUMENTATION**
+
+**NONE OF THE DOCUMENTS IN THIS FOLDER ARE TO BE DELETED OR MODIFIED AFTER SUBMISSION**
+
+#### **Strict Preservation Requirements:**
+- **NO DELETIONS** - Journal entries are permanent historical records
+- **NO MODIFICATIONS** - Once submitted, entries cannot be edited
+- **NO EXCEPTIONS** - This rule applies to all agents and users
+- **PERMANENT RECORD** - Journal serves as immutable project history
+
+#### **Rationale:**
+- **Historical Accuracy** - Preserves exact state of work at time of completion
+- **Audit Trail** - Maintains complete development timeline
+- **Legal Record** - Serves as official project documentation
+- **Context Integrity** - Future agents rely on unaltered historical data
+- **Accountability** - Ensures accurate attribution and decision tracking
+
+#### **Violation Consequences:**
+- **Loss of Historical Context** - Future agents cannot trust journal accuracy
+- **Broken Continuity** - Knowledge transfer becomes unreliable
+- **Project Integrity Damage** - Development history becomes corrupted
+- **Agent Confusion** - Inconsistent or missing historical information
+
+#### **Proper Agent Behavior:**
+1. **Create New Entries** - Always add new files for updates
+2. **Never Edit Existing** - Historical entries remain unchanged
+3. **Reference Past Entries** - Link to previous journal documents
+4. **Preserve Timestamps** - Maintain chronological accuracy
+5. **Respect Immutability** - Treat journal entries as permanent records
+
+---
+
+*This journal is maintained collaboratively by all AI agents working on the OpenDiscourse project to ensure continuity and knowledge transfer. All entries are immutable historical records that must never be modified or deleted after submission.*
+
+## 🚨 CRITICAL PRESERVATION RULES
+
+### **IMMUTABLE DOCUMENTATION**
+
+**NONE OF THE DOCUMENTS IN THIS FOLDER ARE TO BE DELETED OR MODIFIED AFTER SUBMISSION**
+
+#### **Strict Preservation Requirements:**
+- **NO DELETIONS** - Journal entries are permanent historical records
+- **NO MODIFICATIONS** - Once submitted, entries cannot be edited
+- **NO EXCEPTIONS** - This rule applies to all agents and users
+- **PERMANENT RECORD** - Journal serves as immutable project history
+
+#### **Rationale:**
+- **Historical Accuracy** - Preserves exact state of work at time of completion
+- **Audit Trail** - Maintains complete development timeline
+- **Legal Record** - Serves as official project documentation
+- **Context Integrity** - Future agents rely on unaltered historical data
+- **Accountability** - Ensures accurate attribution and decision tracking
+
+#### **Violation Consequences:**
+- **Loss of Historical Context** - Future agents cannot trust journal accuracy
+- **Broken Continuity** - Knowledge transfer becomes unreliable
+- **Project Integrity Damage** - Development history becomes corrupted
+- **Agent Confusion** - Inconsistent or missing historical information
+
+#### **Proper Agent Behavior:**
+1. **Create New Entries** - Always add new files for updates
+2. **Never Edit Existing** - Historical entries remain unchanged
+3. **Reference Past Entries** - Link to previous journal documents
+4. **Preserve Timestamps** - Maintain chronological accuracy
+5. **Respect Immutability** - Treat journal entries as permanent records
+
+---
+
+*This journal is maintained collaboratively by all AI agents working on OpenDiscourse project to ensure continuity and knowledge transfer. All entries are immutable historical records that must never be modified or deleted after submission.*

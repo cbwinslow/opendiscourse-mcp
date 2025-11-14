@@ -411,3 +411,31 @@ This journal system ensures:
 ---
 
 This guide ensures AI agents can effectively and safely work with the OpenDiscourse system, leveraging its advanced trigger-based monitoring capabilities for reliable, real-time data ingestion while maintaining comprehensive documentation through the journal system.
+
+
+### 🚨 CRITICAL: JOURNAL IMMUTABILITY RULES
+
+**ABSOLUTELY NO JOURNAL ENTRIES MAY BE DELETED OR MODIFIED AFTER SUBMISSION**
+
+#### **Strict Preservation Requirements:**
+- **NO DELETIONS** - Journal entries are permanent historical records
+- **NO MODIFICATIONS** - Once submitted, entries cannot be edited  
+- **NO EXCEPTIONS** - This rule applies to ALL agents and users
+- **PERMANENT RECORD** - Journal serves as immutable project history
+
+#### **Agent Compliance:**
+1. **Create New Entries Only** - Always add new files for updates
+2. **Never Edit Existing** - Historical entries remain unchanged
+3. **Never Delete Entries** - All journal documents are permanent
+4. **Reference Past Entries** - Link to previous journal documents
+5. **Respect Immutability** - Treat journal entries as permanent records
+
+#### **Violation Consequences:**
+- **Loss of Historical Context** - Future agents cannot trust journal accuracy
+- **Broken Continuity** - Knowledge transfer becomes unreliable  
+- **Project Integrity Damage** - Development history becomes corrupted
+- **Agent Confusion** - Inconsistent or missing historical information
+
+---
+
+*All journal entries are immutable historical records that must never be modified or deleted after submission.*
