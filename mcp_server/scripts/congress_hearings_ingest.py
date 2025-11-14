@@ -72,7 +72,7 @@ def normalize_congress_hearing(hearing_obj: dict) -> dict:
     }
 
 
-def ingest_hearings(api_key: str, congress: int = None, max_pages: int = 10):
+def ingest_hearings(api_key: str, congress: int = None, max_pages: int = 999999):
     """Ingest committee hearings from Congress API."""
     # Create monitoring job
     job_id = monitor.create_job(
@@ -98,7 +98,7 @@ def ingest_hearings(api_key: str, congress: int = None, max_pages: int = 10):
         duplicates_found = 0
         page = 1
 
-        while page <= max_pages:
+        while True:
             try:
                 # Use the hearing endpoint
                 url = f"{client.BASE}/hearing"
@@ -166,7 +166,7 @@ def ingest_hearings(api_key: str, congress: int = None, max_pages: int = 10):
 
                 # Check pagination
                 pagination = res.get('pagination', {})
-                if not pagination.get('next') or page >= max_pages:
+                if not pagination.get('next'):
                     break
 
                 page += 1
@@ -186,7 +186,7 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('--congress', type=int, default=None)
     p.add_argument('--api_key', default=os.getenv('CONGRESS_API_KEY'))
-    p.add_argument('--max_pages', type=int, default=10)
+    p.add_argument('--max_pages', type=int, default=999999)
     args = p.parse_args()
 
     if not DB_URL:

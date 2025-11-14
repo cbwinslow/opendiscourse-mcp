@@ -78,7 +78,7 @@ def normalize_congress_bill(congress: int, bill_obj: dict) -> dict:
     }
 
 def ingest_bills(api_key: str, congress: int = None, billType: str = None, page: int = 1, 
-                 max_pages: int = 10, timeout_seconds: int = 300):
+                  max_pages: int = 999999, timeout_seconds: int = 300):
     
     # Set up timeout handling
     signal.signal(signal.SIGALRM, timeout_handler)
@@ -116,7 +116,7 @@ def ingest_bills(api_key: str, congress: int = None, billType: str = None, page:
         
         start_time = time.time()
 
-        while page <= max_pages:
+        while True:
             pages_processed += 1
             elapsed = int(time.time() - start_time)
             
@@ -211,8 +211,6 @@ def ingest_bills(api_key: str, congress: int = None, billType: str = None, page:
                 
                 # Try next page if it's a different error
                 page += 1
-                if page > max_pages:
-                    break
 
         if not use_sqlalchemy and not use_copy:
             cur.close()
@@ -231,7 +229,7 @@ if __name__ == '__main__':
     p.add_argument('--billType', default=None)
     p.add_argument('--api_key', default=os.getenv('CONGRESS_API_KEY'))
     p.add_argument('--page', type=int, default=1)
-    p.add_argument('--max-pages', type=int, default=10, help='Maximum pages to process (default: 10)')
+    p.add_argument('--max-pages', type=int, default=999999, help='Maximum pages to process (default: 999999)')
     p.add_argument('--timeout', type=int, default=300, help='Timeout in seconds (default: 300)')
     args = p.parse_args()
 

@@ -120,8 +120,8 @@ class IngestionConfig:
     batch_size: int = 1000
     
     # Pagination and limits
-    max_pages: int = 50
-    per_page: int = 50
+    max_pages: int = 999999
+    per_page: int = 999999
     timeout: int = 300
     
     # Output options
@@ -322,8 +322,10 @@ class UnifiedIngester:
             
             # Fetch data
             all_data = []
-            for page in range(1, self.config.max_pages + 1):
+            page = 1
+            while True:
                 data = client.get(endpoint, params={'offset': (page - 1) * self.config.per_page})
+                page += 1
                 if not data or not data.get(data.get('pagination', {}).get('next', {}).get('count', 0)):
                     break
                 
@@ -897,14 +899,14 @@ Examples:
     parser.add_argument(
         '--max-pages',
         type=int,
-        default=50,
-        help='Maximum pages to fetch (default: 50)'
+        default=999999,
+        help='Maximum pages to fetch (default: 999999)'
     )
     parser.add_argument(
         '--per-page',
         type=int,
-        default=50,
-        help='Records per page (default: 50)'
+        default=999999,
+        help='Records per page (default: 999999)'
     )
     parser.add_argument(
         '--batch-size',

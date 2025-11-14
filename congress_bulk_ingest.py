@@ -326,7 +326,7 @@ def main():
                        choices=['bills', 'members', 'committees', 'votes', 'bill_actions',
                                'bill_text', 'summaries', 'treaties', 'nominations', 'hearings', 'congress'],
                        help='Data types to ingest (default: all)')
-    parser.add_argument('--max-pages', type=int, default=50,
+    parser.add_argument('--max-pages', type=int, default=999999,
                        help='Maximum pages to fetch per data type')
     parser.add_argument('--delay', type=int, default=5,
                        help='Seconds to wait between Congress sessions')

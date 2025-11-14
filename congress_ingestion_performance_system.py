@@ -325,8 +325,8 @@ Examples:
                        choices=['bills', 'members', 'committees', 'votes', 'hearings', 'nominations', 'treaties', 'congress'],
                        default=['bills', 'members', 'committees'],
                        help='Data types to ingest')
-    parser.add_argument('--max-pages', type=int, default=50,
-                       help='Maximum pages to fetch per data type (default: 50)')
+    parser.add_argument('--max-pages', type=int, default=999999,
+                       help='Maximum pages to fetch per data type (default: 999999)')
     parser.add_argument('--max-concurrent-sessions', type=int, default=3,
                        help='Maximum Congress sessions to process concurrently (default: 3)')
     parser.add_argument('--api-key', default=os.getenv('CONGRESS_API_KEY'),

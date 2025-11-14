@@ -95,7 +95,7 @@ def normalize_congress_vote(vote_obj: dict) -> dict:
     }
 
 
-def ingest_votes(api_key: str, congress: int = None, chamber: str = None, date: str = None, max_pages: int = 10):
+def ingest_votes(api_key: str, congress: int = None, chamber: str = None, date: str = None, max_pages: int = 999999):
     """Ingest roll call votes from Congress API."""
     # Create monitoring job
     job_id = monitor.create_job(
@@ -122,7 +122,7 @@ def ingest_votes(api_key: str, congress: int = None, chamber: str = None, date: 
         duplicates_found = 0
         page = 1
 
-        while page <= max_pages:
+        while True:
             try:
                 # Use the votes endpoint
                 res = client.list_votes(congress=congress, chamber=chamber, date=date)
@@ -188,7 +188,7 @@ def ingest_votes(api_key: str, congress: int = None, chamber: str = None, date: 
 
                 # Check pagination
                 pagination = res.get('pagination', {})
-                if not pagination.get('next') or page >= max_pages:
+                if not pagination.get('next'):
                     break
 
                 page += 1
@@ -210,7 +210,7 @@ if __name__ == '__main__':
     p.add_argument('--chamber', default=None, choices=['house', 'senate'])
     p.add_argument('--date', default=None, help='Date in YYYY-MM-DD format')
     p.add_argument('--api_key', default=os.getenv('CONGRESS_API_KEY'))
-    p.add_argument('--max_pages', type=int, default=10)
+    p.add_argument('--max_pages', type=int, default=999999)
     args = p.parse_args()
 
     if not DB_URL:

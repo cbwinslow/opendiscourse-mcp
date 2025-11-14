@@ -7,6 +7,8 @@ import hashlib
 import json
 import logging
 import time
+import functools
+import random
 from typing import Dict, List, Any, Optional, Callable, Union
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -34,11 +36,13 @@ try:
 except ImportError:
     FABRIC_AVAILABLE = False
 
-try:
-    import cudf
-    CUDF_AVAILABLE = True
-except ImportError:
-    CUDF_AVAILABLE = False
+# GPU Enhancement Disabled - Not useful for web data ingestion
+# try:
+#     import cudf
+#     CUDF_AVAILABLE = True
+# except ImportError:
+#     CUDF_AVAILABLE = False
+CUDF_AVAILABLE = False  # Force disable GPU processing
 
 try:
     import dask
@@ -98,6 +102,116 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ===== ENHANCED DECORATORS =====
+
+def retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0, 
+          exceptions: tuple = (Exception,)):
+    """Retry decorator with exponential backoff for API calls."""
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    last_exception = e
+                    if attempt == max_attempts - 1:
+                        logger.error(f"Function {func.__name__} failed after {max_attempts} attempts: {e}")
+                        raise
+                    
+                    wait_time = delay * (backoff ** attempt)
+                    logger.warning(f"Attempt {attempt + 1} failed for {func.__name__}: {e}. Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+            
+            raise last_exception
+        return wrapper
+    return decorator
+
+def cache(ttl_seconds: int = 300, max_size: int = 1000):
+    """Simple in-memory cache decorator for API responses."""
+    cache_store = {}
+    cache_times = {}
+    
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # Create cache key from function name and arguments
+            cache_key = f"{func.__name__}:{hash(str(args) + str(sorted(kwargs.items())))}"
+            
+            current_time = time.time()
+            
+            # Check if cached result exists and is not expired
+            if (cache_key in cache_store and 
+                cache_key in cache_times and 
+                current_time - cache_times[cache_key] < ttl_seconds):
+                logger.debug(f"Cache hit for {func.__name__}")
+                return cache_store[cache_key]
+            
+            # Execute function and cache result
+            result = func(*args, **kwargs)
+            
+            # Implement simple LRU eviction if cache is full
+            if len(cache_store) >= max_size:
+                oldest_key = min(cache_times.keys(), key=lambda k: cache_times[k])
+                del cache_store[oldest_key]
+                del cache_times[oldest_key]
+            
+            cache_store[cache_key] = result
+            cache_times[cache_key] = current_time
+            logger.debug(f"Cached result for {func.__name__}")
+            
+            return result
+        return wrapper
+    return decorator
+
+def rate_limit(calls_per_second: float = 1.0):
+    """Rate limiting decorator for API calls."""
+    def decorator(func: Callable) -> Callable:
+        last_called = [0.0]  # Use list to make it mutable in nested function
+        
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            current_time = time.time()
+            min_interval = 1.0 / calls_per_second
+            
+            time_since_last = current_time - last_called[0]
+            if time_since_last < min_interval:
+                sleep_time = min_interval - time_since_last
+                logger.debug(f"Rate limiting {func.__name__}: sleeping {sleep_time:.2f}s")
+                time.sleep(sleep_time)
+            
+            last_called[0] = time.time()
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+def monitor_performance(func: Callable) -> Callable:
+    """Performance monitoring decorator."""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        start_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
+        
+        try:
+            result = func(*args, **kwargs)
+            
+            end_time = time.time()
+            end_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
+            
+            duration = end_time - start_time
+            memory_delta = end_memory - start_memory
+            
+            logger.info(f"Performance: {func.__name__} took {duration:.2f}s, memory delta: {memory_delta:+.1f}MB")
+            return result
+            
+        except Exception as e:
+            end_time = time.time()
+            duration = end_time - start_time
+            logger.error(f"Performance: {func.__name__} failed after {duration:.2f}s: {e}")
+            raise
+    return wrapper
+
 @dataclass
 class IngestionJob:
     """Represents an ingestion job with metadata."""
@@ -118,12 +232,18 @@ class IngestionJob:
 @dataclass
 class IngestionConfig:
     """Configuration for enhanced ingestion."""
-    use_gpu: bool = False
+    use_gpu: bool = False  # Disabled - not useful for web ingestion
     use_parallel: bool = True
     use_async: bool = True
     max_workers: int = None
     batch_size: int = 1000
     chunk_size: int = 10000
+    enable_retry: bool = True
+    max_retry_attempts: int = 3
+    retry_delay: float = 1.0
+    enable_caching: bool = True
+    cache_ttl: int = 300  # 5 minutes
+    rate_limit_calls: float = 10.0  # 10 calls per second
     enable_progress_tracking: bool = True
     enable_deduplication: bool = True
     enable_compression: bool = True
@@ -192,34 +312,56 @@ class DeduplicationManager:
         else:
             self.local_hashes.add(record_hash)
 
-class GPUDataProcessor:
-    """GPU-accelerated data processing using CuDF."""
+# GPU Data Processing Disabled - Not beneficial for web ingestion workloads
+# class GPUDataProcessor:
+#     """GPU-accelerated data processing using CuDF."""
+# 
+#     def __init__(self):
+#         self.gpu_available = self._check_gpu_availability()
+# 
+#     def _check_gpu_availability(self) -> bool:
+#         """Check if GPU is available."""
+#         return CUDF_AVAILABLE
+# 
+#     def process_dataframe(self, df: pd.DataFrame) -> Union[pd.DataFrame, Any]:
+#         """Process dataframe with GPU acceleration if available."""
+#         if not self.gpu_available:
+#             return df
+# 
+#         try:
+#             import cudf
+#             # Convert to CuDF for GPU processing
+#             cudf_df = cudf.DataFrame.from_pandas(df)
+# 
+#             # Perform GPU-accelerated operations here
+#             # For example: filtering, sorting, aggregations
+#             if 'date' in cudf_df.columns:
+#                 cudf_df['date'] = cudf.to_datetime(cudf_df['date'])
+# 
+#             return cudf_df.to_pandas()
+#         except Exception as e:
+#             logger.warning(f"GPU processing failed, falling back to CPU: {e}")
+#             return df
 
+# Fallback CPU-only processor
+class CPUDataProcessor:
+    """CPU-only data processing - optimized for web ingestion workloads."""
+    
     def __init__(self):
-        self.gpu_available = self._check_gpu_availability()
-
-    def _check_gpu_availability(self) -> bool:
-        """Check if GPU is available."""
-        return CUDF_AVAILABLE
-
-    def process_dataframe(self, df: pd.DataFrame) -> Union[pd.DataFrame, Any]:
-        """Process dataframe with GPU acceleration if available."""
-        if not self.gpu_available:
-            return df
-
+        self.cpu_available = True
+    
+    @monitor_performance
+    def process_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Process dataframe with CPU optimization."""
         try:
-            import cudf
-            # Convert to CuDF for GPU processing
-            cudf_df = cudf.DataFrame.from_pandas(df)
-
-            # Perform GPU-accelerated operations here
-            # For example: filtering, sorting, aggregations
-            if 'date' in cudf_df.columns:
-                cudf_df['date'] = cudf.to_datetime(cudf_df['date'])
-
-            return cudf_df.to_pandas()
+            # CPU-optimized date processing
+            if 'date' in df.columns:
+                df['date'] = pd.to_datetime(df['date'], errors='coerce')
+            
+            # Basic data cleaning and optimization
+            return df
         except Exception as e:
-            logger.warning(f"GPU processing failed, falling back to CPU: {e}")
+            logger.warning(f"CPU processing failed: {e}")
             return df
 
 class ParallelProcessor:
@@ -229,6 +371,7 @@ class ParallelProcessor:
         self.max_workers = max_workers or min(32, multiprocessing.cpu_count() * 2)
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers)
 
+    @monitor_performance
     async def process_batch_async(self, items: List[Any], processor_func: Callable,
                                 batch_size: int = 100) -> List[Any]:
         """Process items in parallel batches asynchronously."""
@@ -267,7 +410,8 @@ class AsyncDataLoader:
 
     def __init__(self, config: IngestionConfig):
         self.config = config
-        self.gpu_processor = GPUDataProcessor() if config.use_gpu else None
+        # GPU processing disabled - use CPU processor instead
+        self.cpu_processor = CPUDataProcessor()  # Always use CPU for web ingestion
         self.parallel_processor = ParallelProcessor(config.max_workers) if config.use_parallel else None
 
     async def load_and_process_data(self, data_source: str, processor_func: Callable,

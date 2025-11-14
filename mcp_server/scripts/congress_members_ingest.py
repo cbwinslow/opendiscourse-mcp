@@ -12,6 +12,7 @@ from mcp_server.clients.congress_client import CongressClient
 from mcp_server.db import get_sqlalchemy_engine, get_raw_connection
 from mcp_server.utils.db_copy import copy_dataframe_to_table
 from mcp_server.utils.monitoring import monitor, deduplicator
+from mcp_server.utils.monitoring_framework import monitor_ingestion
 import pandas as pd
 
 DB_URL = os.getenv("DATABASE_URL")
@@ -118,7 +119,8 @@ def normalize_congress_member(member_obj: dict) -> dict:
     }
 
 
-def ingest_members(api_key: str, congress: int = None, chamber: str = None, current_member: bool = None, max_pages: int = 10):
+@monitor_ingestion(data_type="members", congress=None)
+def ingest_members(api_key: str, congress: int = None, chamber: str = None, current_member: bool = None, max_pages: int = 999999):
     """Ingest members from Congress API."""
     # Create monitoring job
     job_id = monitor.create_job(
@@ -145,7 +147,7 @@ def ingest_members(api_key: str, congress: int = None, chamber: str = None, curr
         duplicates_found = 0
         page = 1
 
-        while page <= max_pages:
+        while True:
             try:
                 # Use the members endpoint
                 res = client.list_members(congress=congress, chamber=chamber)
@@ -209,7 +211,7 @@ def ingest_members(api_key: str, congress: int = None, chamber: str = None, curr
 
                 # Check pagination
                 pagination = res.get('pagination', {})
-                if not pagination.get('next') or page >= max_pages:
+                if not pagination.get('next'):
                     break
 
                 page += 1
@@ -231,7 +233,7 @@ if __name__ == '__main__':
     p.add_argument('--chamber', default=None, choices=['house', 'senate'])
     p.add_argument('--current_member', action='store_true', help='Only ingest current members')
     p.add_argument('--api_key', default=os.getenv('CONGRESS_API_KEY'))
-    p.add_argument('--max_pages', type=int, default=10)
+    p.add_argument('--max_pages', type=int, default=999999)
     args = p.parse_args()
 
     if not DB_URL:

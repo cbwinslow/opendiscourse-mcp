@@ -44,25 +44,59 @@ def connect_db(url: str):
 
 
 def normalize_bill(bill: dict) -> dict:
+    """Normalize OpenStates bill data with proper type handling and validation."""
+    
+    # Handle jurisdiction field safely
+    jurisdiction = None
+    if 'jurisdiction' in bill:
+        if isinstance(bill['jurisdiction'], dict):
+            jurisdiction = bill['jurisdiction'].get('id')
+        elif isinstance(bill['jurisdiction'], str):
+            jurisdiction = bill['jurisdiction']
+    
+    # Handle classification field - ensure it's a list
+    classification = bill.get('classification', [])
+    if classification is None:
+        classification = []
+    elif not isinstance(classification, list):
+        classification = [str(classification)]
+    
+    # Handle subject field - ensure it's a list
+    subject = bill.get('subject', [])
+    if subject is None:
+        subject = []
+    elif not isinstance(subject, list):
+        subject = [str(subject)]
+    
+    # Safely extract dates
+    def safe_date(date_field):
+        date_val = bill.get(date_field)
+        if date_val is None:
+            return None
+        if isinstance(date_val, str):
+            return date_val
+        # Convert other types to string if needed
+        return str(date_val)
+    
     return {
         'id': bill.get('id'),
         'session': bill.get('session'),
-        'jurisdiction': bill.get('jurisdiction', {}).get('id') if isinstance(bill.get('jurisdiction'), dict) else bill.get('jurisdiction'),
+        'jurisdiction': jurisdiction,
         'identifier': bill.get('identifier'),
         'title': bill.get('title'),
-        'classification': bill.get('classification') or [],
-        'subject': bill.get('subject') or [],
-        'created_at': bill.get('created_at'),
-        'updated_at': bill.get('updated_at'),
-        'first_action_date': bill.get('first_action_date') or None,
-        'latest_action_date': bill.get('latest_action_date') or None,
+        'classification': classification,
+        'subject': subject,
+        'created_at': safe_date('created_at'),
+        'updated_at': safe_date('updated_at'),
+        'first_action_date': safe_date('first_action_date'),
+        'latest_action_date': safe_date('latest_action_date'),
         'latest_action_description': bill.get('latest_action_description'),
         'openstates_url': bill.get('openstates_url'),
         'raw': Json(bill)
     }
 
 
-def ingest_bills(api_key: str, jurisdiction: str = None, q: str = None, page: int = 1, per_page: int = 50):
+def ingest_bills(api_key: str, jurisdiction: str = None, q: str = None, page: int = 1, per_page: int = 999999):
     # Create monitoring job
     job_id = monitor.create_job(
         source='openstates',
@@ -97,36 +131,54 @@ def ingest_bills(api_key: str, jurisdiction: str = None, q: str = None, page: in
 
             df_rows = []
             for b in results:
-                row = normalize_bill(b)
+                try:
+                    row = normalize_bill(b)
 
-                # Check for duplicates using content hashing
-                content_hash = deduplicator.get_content_hash(row, exclude_fields=['raw'])
-                if deduplicator.is_duplicate('openstates_bills', content_hash, row['id']):
-                    duplicates_found += 1
+                    # Skip if missing required fields
+                    if not row.get('id') or not row.get('jurisdiction'):
+                        continue
+
+                    # Check for duplicates using content hashing
+                    content_hash = deduplicator.get_content_hash(row, exclude_fields=['raw'])
+                    if deduplicator.is_duplicate('openstates_bills', content_hash, row['id']):
+                        duplicates_found += 1
+                        continue
+
+                    if use_copy:
+                        # Convert lists to PostgreSQL array format safely
+                        classification_str = None
+                        if row['classification']:
+                            classification_str = '{' + ','.join(str(x) for x in row['classification']) + '}'
+                        
+                        subjects_str = None
+                        if row['subject']:
+                            subjects_str = '{' + ','.join(str(x) for x in row['subject']) + '}'
+                        
+                        df_rows.append({
+                            'id': row['id'],
+                            'session': row['session'],
+                            'jurisdiction': row['jurisdiction'],
+                            'identifier': row['identifier'],
+                            'title': row['title'],
+                            'classification': classification_str,
+                            'subjects': subjects_str,
+                            'created_at': row['created_at'],
+                            'updated_at': row['updated_at'],
+                            'first_action_date': row['first_action_date'],
+                            'latest_action_date': row['latest_action_date'],
+                            'latest_action_description': row['latest_action_description'],
+                            'openstates_url': row['openstates_url'],
+                        })
+                    elif use_sqlalchemy:
+                        # SQLAlchemy path - use engine.execute with parameterized statements
+                        with engine.begin() as connection:
+                            connection.execute(UPSERT_BILL_SQL, row)
+                    else:
+                        cur.execute(UPSERT_BILL_SQL, row)
+                        
+                except Exception as e:
+                    logger.warning(f"Error processing bill {b.get('id', 'unknown')}: {e}")
                     continue
-
-                if use_copy:
-                    df_rows.append({
-                        'id': row['id'],
-                        'session': row['session'],
-                        'jurisdiction': row['jurisdiction'],
-                        'identifier': row['identifier'],
-                        'title': row['title'],
-                        'classification': '{' + ','.join(row['classification']) + '}' if row['classification'] else None,
-                        'subjects': '{' + ','.join(row['subject']) + '}' if row['subject'] else None,
-                        'created_at': row['created_at'],
-                        'updated_at': row['updated_at'],
-                        'first_action_date': row['first_action_date'],
-                        'latest_action_date': row['latest_action_date'],
-                        'latest_action_description': row['latest_action_description'],
-                        'openstates_url': row['openstates_url'],
-                    })
-                elif use_sqlalchemy:
-                    # SQLAlchemy path - use engine.execute with parameterized statements
-                    with engine.begin() as connection:
-                        connection.execute(UPSERT_BILL_SQL, row)
-                else:
-                    cur.execute(UPSERT_BILL_SQL, row)
 
             if use_copy and df_rows:
                 df = pd.DataFrame(df_rows)
@@ -163,7 +215,7 @@ if __name__ == '__main__':
     p.add_argument('--q', default=None)
     p.add_argument('--api_key', default=os.getenv('OPENSTATES_API_KEY'))
     p.add_argument('--page', type=int, default=1)
-    p.add_argument('--per_page', type=int, default=50)
+    p.add_argument('--per_page', type=int, default=999999)
     args = p.parse_args()
 
     if not DB_URL:

@@ -79,7 +79,7 @@ def normalize_congress_bill(congress: int, bill_obj: dict) -> dict:
 
 @monitor_ingestion(data_type="bills", congress=None)
 @benchmark_function
-def ingest_bills(api_key: str, congress: int = None, billType: str = None, page: int = 1, max_pages: int = 10):
+def ingest_bills(api_key: str, congress: int = None, billType: str = None, page: int = 1, max_pages: int = 999999):
     # Initialize monitoring framework
     monitor_framework = get_monitor()
     flags = FeatureFlags.from_env()
@@ -121,7 +121,7 @@ def ingest_bills(api_key: str, congress: int = None, billType: str = None, page:
         duplicates_found = 0
         pages_processed = 0
 
-        while pages_processed < max_pages:
+        while True:
             res = client.search_bills(congress=congress, billType=billType, page=page)
 
             # Handle v3 API response structure
@@ -177,7 +177,7 @@ def ingest_bills(api_key: str, congress: int = None, billType: str = None, page:
 
             # Check pagination for next page
             pagination = res.get('pagination', {})
-            if not pagination.get('next') or pages_processed >= max_pages:
+            if not pagination.get('next'):
                 break
 
             page += 1  # Continue to next page
@@ -195,7 +195,7 @@ if __name__ == '__main__':
     p.add_argument('--billType', default=None)
     p.add_argument('--api_key', default=os.getenv('CONGRESS_API_KEY'))
     p.add_argument('--page', type=int, default=1)
-    p.add_argument('--max_pages', type=int, default=10)  # Limit pages for testing
+    p.add_argument('--max_pages', type=int, default=999999)  # Unlimited pages for full coverage
     args = p.parse_args()
 
     if not DB_URL:

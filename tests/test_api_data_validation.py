@@ -103,27 +103,36 @@ class APIDataValidator:
         response.raise_for_status()
         return response.json()
 
-    def fetch_openstates_bill(self, state: str = 'ca', bill_id: str = 'AB 1') -> Dict[str, Any]:
-        """Fetch a bill from OpenStates API"""
+    def fetch_openstates_bill(self, jurisdiction: str = 'nc', bill_id: str = 'AB 1') -> Dict[str, Any]:
+        """Fetch a bill from OpenStates API using current v3 format"""
         self._rate_limit('openstates')
-        # Try to find a recent bill
+        # Use current OpenStates v3 API format
         url = f"{self.openstates_base}/bills"
-        params = {'state': state, 'q': bill_id, 'apikey': OPENSTATES_API_KEY}
+        params = {'jurisdiction': f'ocd-jurisdiction/country:us/state:{jurisdiction}/government', 
+                  'page': 1, 'per_page': 1}
+        if OPENSTATES_API_KEY:
+            params['apikey'] = OPENSTATES_API_KEY
 
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-
-        if data and len(data) > 0:
-            return data[0]
-        else:
-            # Fallback to search for any recent bill
-            url = f"{self.openstates_base}/bills"
-            params = {'state': state, 'search_window': 'session', 'apikey': OPENSTATES_API_KEY}
+        try:
             response = requests.get(url, params=params)
             response.raise_for_status()
             data = response.json()
-            return data[0] if data else {}
+
+            if data and 'results' in data and data['results']:
+                return data['results'][0]
+            else:
+                # Fallback to search for any recent bill
+                params = {'jurisdiction': f'ocd-jurisdiction/country:us/state:{jurisdiction}/government',
+                          'page': 1, 'per_page': 1}
+                if OPENSTATES_API_KEY:
+                    params['apikey'] = OPENSTATES_API_KEY
+                response = requests.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+                return data['results'][0] if data and 'results' in data and data['results'] else {}
+        except Exception as e:
+            print(f"Warning: Could not fetch OpenStates data: {e}")
+            return {}
 
     def validate_congress_bill_data(self, data: Dict[str, Any]) -> List[str]:
         """Validate Congress bill data against schema expectations"""
@@ -231,33 +240,62 @@ class APIDataValidator:
         return errors
 
     def validate_openstates_bill_data(self, data: Dict[str, Any]) -> List[str]:
-        """Validate OpenStates bill data against schema expectations"""
+        """Validate OpenStates bill data against current v3 API schema expectations"""
         errors = []
 
-        # Check required fields
+        if not data:
+            errors.append("No data received from OpenStates API")
+            return errors
+
+        # Check required fields for current v3 API
         required_fields = [
-            'id', 'title', 'state', 'session', 'chamber', 'type', 'status',
-            'subjects', 'actions', 'votes', 'sources'
+            'id', 'identifier', 'title', 'classification', 'subject', 
+            'jurisdiction', 'session', 'created_at', 'updated_at'
         ]
 
         for field in required_fields:
             if field not in data:
                 errors.append(f"Missing required field: {field}")
 
-        # Validate sponsors structure
-        if 'sponsors' in data and data['sponsors']:
-            sponsor = data['sponsors'][0]
-            sponsor_fields = ['name', 'type']
+        # Validate jurisdiction structure
+        if 'jurisdiction' in data:
+            if isinstance(data['jurisdiction'], dict):
+                if 'id' not in data['jurisdiction']:
+                    errors.append("Missing jurisdiction.id field")
+            elif not isinstance(data['jurisdiction'], str):
+                errors.append("jurisdiction should be string or dict with id field")
+
+        # Validate classification is list
+        if 'classification' in data and data['classification'] is not None:
+            if not isinstance(data['classification'], list):
+                errors.append("classification should be a list")
+
+        # Validate subject is list
+        if 'subject' in data and data['subject'] is not None:
+            if not isinstance(data['subject'], list):
+                errors.append("subject should be a list")
+
+        # Validate dates are in proper format
+        date_fields = ['created_at', 'updated_at', 'first_action_date', 'latest_action_date']
+        for field in date_fields:
+            if field in data and data[field] is not None:
+                if not isinstance(data[field], str):
+                    errors.append(f"{field} should be a string (ISO date)")
+
+        # Validate sponsors structure if present
+        if 'sponsorships' in data and data['sponsorships']:
+            sponsor = data['sponsorships'][0]
+            sponsor_fields = ['name', 'classification']
             for field in sponsor_fields:
-                if field not in sponsor:
+                if isinstance(sponsor, dict) and field not in sponsor:
                     errors.append(f"Missing sponsor field: {field}")
 
-        # Validate actions structure
+        # Validate actions structure if present
         if 'actions' in data and data['actions']:
             action = data['actions'][0]
-            action_fields = ['date', 'action', 'type']
+            action_fields = ['date', 'description']
             for field in action_fields:
-                if field not in action:
+                if isinstance(action, dict) and field not in action:
                     errors.append(f"Missing action field: {field}")
 
         return errors

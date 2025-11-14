@@ -108,7 +108,7 @@ def resolve_dependencies(scripts_to_run: list) -> list:
     return ordered_scripts
 
 def ingest_all_congress_data(congress: int = None, api_key: str = None, scripts: list = None,
-                           skip_dependencies: bool = False, max_pages: int = 10):
+                           skip_dependencies: bool = False, max_pages: int = 999999):
     """Ingest all available Congress data."""
 
     if scripts is None:
@@ -159,7 +159,7 @@ if __name__ == '__main__':
                    default=['all'], help='Specific scripts to run (default: all)')
     p.add_argument('--skip-dependencies', action='store_true',
                    help='Skip dependency resolution (run scripts in specified order)')
-    p.add_argument('--max_pages', type=int, default=10,
+    p.add_argument('--max_pages', type=int, default=999999,
                    help='Maximum pages to fetch for each script')
     p.add_argument('--list-scripts', action='store_true',
                    help='List available scripts and exit')

@@ -97,7 +97,7 @@ def normalize_congress_committee(committee_obj: dict) -> dict:
     }
 
 
-def ingest_committees(api_key: str, congress: int = None, chamber: str = None, max_pages: int = 10):
+def ingest_committees(api_key: str, congress: int = None, chamber: str = None, max_pages: int = 999999):
     """Ingest committees from Congress API."""
     # Create monitoring job
     job_id = monitor.create_job(
@@ -124,7 +124,7 @@ def ingest_committees(api_key: str, congress: int = None, chamber: str = None, m
         duplicates_found = 0
         page = 1
 
-        while page <= max_pages:
+        while True:
             try:
                 # Use the committees endpoint
                 res = client.list_committees(congress=congress, chamber=chamber)
@@ -182,7 +182,7 @@ def ingest_committees(api_key: str, congress: int = None, chamber: str = None, m
 
                 # Check pagination
                 pagination = res.get('pagination', {})
-                if not pagination.get('next') or page >= max_pages:
+                if not pagination.get('next'):
                     break
 
                 page += 1
@@ -203,7 +203,7 @@ if __name__ == '__main__':
     p.add_argument('--congress', type=int, default=None)
     p.add_argument('--chamber', default=None, choices=['house', 'senate', 'joint'])
     p.add_argument('--api_key', default=os.getenv('CONGRESS_API_KEY'))
-    p.add_argument('--max_pages', type=int, default=10)
+    p.add_argument('--max_pages', type=int, default=999999)
     args = p.parse_args()
 
     if not DB_URL:

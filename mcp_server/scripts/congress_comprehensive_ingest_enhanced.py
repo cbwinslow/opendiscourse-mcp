@@ -41,7 +41,7 @@ class EnhancedCongressIngester:
         self.progress_tracker = None
 
     async def ingest_congress_data_async(self, congress: int, data_types: List[str],
-                                       max_pages: int = 10) -> Dict[str, Any]:
+                                        max_pages: int = 999999) -> Dict[str, Any]:
         """Ingest data for a single Congress using async HTTP and progress tracking."""
 
         # Initialize progress tracker
@@ -197,7 +197,7 @@ async def main():
     parser.add_argument('--database_url', default=os.getenv('DATABASE_URL'), help='Database URL')
     parser.add_argument('--data_types', nargs='+', choices=list(INGESTION_SCRIPTS.keys()),
                        default=['bills', 'members', 'committees'], help='Data types to ingest')
-    parser.add_argument('--max_pages', type=int, default=10, help='Maximum pages per data type')
+    parser.add_argument('--max_pages', type=int, default=999999, help='Maximum pages per data type')
 
     args = parser.parse_args()
 

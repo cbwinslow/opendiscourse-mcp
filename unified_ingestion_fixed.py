@@ -247,7 +247,7 @@ class UnifiedIngester:
         ]
         
         # Add pagination limits
-        max_pages = kwargs.get('max_pages', 10)
+        max_pages = kwargs.get('max_pages', 999999)
         if data_type in ['bills', 'members', 'committees', 'votes']:
             cmd.extend(['--max_pages', str(max_pages)])
         
@@ -421,7 +421,7 @@ class UnifiedIngester:
         if query:
             cmd.extend(['--q', query])
         
-        per_page = kwargs.get('per_page', 50)
+        per_page = kwargs.get('per_page', 999999)
         cmd.extend(['--per_page', str(per_page)])
         
         print(f"📋 Running: {' '.join(cmd)}")
@@ -579,14 +579,14 @@ Examples:
     parser.add_argument(
         '--max-pages',
         type=int,
-        default=10,
-        help='Maximum pages to fetch (default: 10)'
+        default=999999,
+        help='Maximum pages to fetch (default: 999999)'
     )
     parser.add_argument(
         '--per-page',
         type=int,
-        default=50,
-        help='Records per page (default: 50)'
+        default=999999,
+        help='Records per page (default: 999999)'
     )
     parser.add_argument(
         '--timeout',

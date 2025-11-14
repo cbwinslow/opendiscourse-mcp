@@ -96,7 +96,7 @@ def get_bills_to_process(congress: int = None, limit: int = None):
     return bills
 
 
-def ingest_bill_actions(api_key: str, congress: int = None, limit: int = None, max_pages: int = 10):
+def ingest_bill_actions(api_key: str, congress: int = None, limit: int = None, max_pages: int = 999999):
     """Ingest bill actions from Congress API."""
     # Create monitoring job
     job_id = monitor.create_job(
@@ -202,7 +202,7 @@ if __name__ == '__main__':
     p.add_argument('--congress', type=int, default=None)
     p.add_argument('--limit', type=int, default=None, help='Limit number of bills to process')
     p.add_argument('--api_key', default=os.getenv('CONGRESS_API_KEY'))
-    p.add_argument('--max_pages', type=int, default=10)
+    p.add_argument('--max_pages', type=int, default=999999)
     args = p.parse_args()
 
     if not DB_URL:

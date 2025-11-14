@@ -322,4 +322,92 @@ psql $DATABASE_URL -c "\df update_ingestion_progress"
 - **Concurrent safety** - no interference between jobs
 - **Reliable operation** - > 99.9% uptime
 
-This guide ensures AI agents can effectively and safely work with the OpenDiscourse system, leveraging its advanced trigger-based monitoring capabilities for reliable, real-time data ingestion.
+---
+
+## 📚 MANDATORY JOURNAL UPDATES
+
+**ALL AI AGENTS MUST CONTRIBUTE TO THE JOURNAL FOLDER EVERY FEW HOURS**
+
+This is a **critical requirement** for maintaining project continuity and knowledge transfer.
+
+### 🔄 Update Frequency Requirements
+
+- **Every 2-4 hours** of active development work
+- **At the end** of each session or user interaction
+- **Before switching** to different tasks or projects
+- **When encountering** significant issues or breakthroughs
+- **User may remind** agents, but agents should remember independently
+
+### 📝 Required Update Content
+
+Each journal entry MUST include:
+
+#### **1. Session Overview**
+- Agent name and timestamp
+- Session duration and context
+- User requests and objectives
+- Current project status
+
+#### **2. Technical Work Summary**
+- **Files modified** with specific line numbers and changes
+- **Code improvements** and optimizations made
+- **Performance metrics** and benchmarks achieved
+- **Testing procedures** and results
+- **Error resolution** and debugging activities
+
+#### **3. Decision Making Process**
+- **Technical choices** made and rationale
+- **Alternative approaches** considered and rejected
+- **Trade-offs** and compromises made
+- **Future implications** of decisions
+
+#### **4. Current Status Report**
+- **Completed tasks** and achievements
+- **In-progress work** and current state
+- **Blocked issues** or dependencies
+- **Next steps** and immediate priorities
+
+#### **5. Future Planning**
+- **Upcoming tasks** and features planned
+- **Technical debt** identified
+- **Performance optimization** opportunities
+- **User feedback** to incorporate
+
+### 📁 File Naming Convention
+
+```
+{agent_name}_{YYYY-MM-DD_HH-mm}_{topic}.md
+```
+
+Examples:
+- `opencode_2025-11-14_15-45_comprehensive_ingestion_enhancement.md`
+- `claude_2025-11-14_18-30_bug_fixes_and_testing.md`
+- `gpt4_2025-11-14_22-15_user_feedback_integration.md`
+
+### 🚨 CRITICAL REMINDERS
+
+1. **NO EXCEPTIONS** - Every agent must update journal regularly
+2. **BE THOROUGH** - Include all technical details and decisions
+3. **BE TIMELY** - Update every few hours, not just at end of day
+4. **BE CONSISTENT** - Use proper format and naming conventions
+5. **THINK AHEAD** - Consider future agents who need context
+
+### 🎯 Purpose & Benefits
+
+This journal system ensures:
+- **Continuity** between different AI agents and sessions
+- **Knowledge transfer** without losing context
+- **Historical record** of technical decisions
+- **Progress tracking** across development cycles
+- **Debugging support** through detailed change logs
+- **Planning continuity** for long-term projects
+
+---
+
+**FAILURE TO COMPLY WITH JOURNAL UPDATE REQUIREMENTS WILL RESULT IN LOSS OF PROJECT CONTEXT AND DUPLICATE WORK.**
+
+*This system is essential for maintaining OpenDiscourse project integrity and development efficiency.*
+
+---
+
+This guide ensures AI agents can effectively and safely work with the OpenDiscourse system, leveraging its advanced trigger-based monitoring capabilities for reliable, real-time data ingestion while maintaining comprehensive documentation through the journal system.

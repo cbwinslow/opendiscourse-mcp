@@ -10,14 +10,25 @@ import asyncio
 import logging
 from typing import Dict, List, Any, Optional
 import pandas as pd
-from tqdm.asyncio import tqdm
+# from tqdm.asyncio import tqdm  # Optional dependency
+try:
+    from tqdm.asyncio import tqdm
+    TQDM_AVAILABLE = True
+except ImportError:
+    tqdm = None
+    TQDM_AVAILABLE = False
 
 from mcp_server.clients.congress_client import CongressClient
 from mcp_server.utils.enhanced_ingestion import (
     IngestionConfig,
     EnhancedIngestionManager,
-    get_ingestion_manager
+    get_ingestion_manager,
+    retry,
+    cache,
+    rate_limit,
+    monitor_performance
 )
+from mcp_server.utils.monitoring import monitor
 from mcp_server.utils.db_copy import copy_dataframe_to_table
 from mcp_server.db import get_raw_connection
 
@@ -49,8 +60,12 @@ class EnhancedCongressIngestor:
         all_data = []
 
         # Create progress tracking
-        with tqdm(total=max_pages, desc="Processing Congress pages") as pbar:
-            for page in range(1, max_pages + 1):
+        page = 1
+        if TQDM_AVAILABLE and tqdm:
+            pbar = tqdm(total=999999, desc="Processing Congress pages")
+        
+        try:
+            while True:
                 try:
                     # Fetch data from API
                     response = await self._fetch_congress_page(congress, bill_type, page)
@@ -68,8 +83,10 @@ class EnhancedCongressIngestor:
                     total_processed += len(processed_batch)
                     all_data.extend(processed_batch)
 
-                    pbar.update(1)
-                    pbar.set_postfix({"processed": total_processed})
+                    if TQDM_AVAILABLE and tqdm:
+                        pbar.update(1)
+                        pbar.set_postfix({"processed": total_processed})
+                    page += 1
 
                     # Rate limiting
                     await asyncio.sleep(0.1)
@@ -77,6 +94,12 @@ class EnhancedCongressIngestor:
                 except Exception as e:
                     logger.error(f"Error processing page {page}: {e}")
                     break
+        except Exception as e:
+            logger.error(f"Enhanced ingestion failed: {e}")
+            raise
+        finally:
+            if TQDM_AVAILABLE and tqdm:
+                pbar.close()
 
         # Final deduplication and optimization
         await self._finalize_ingestion(all_data)
@@ -92,6 +115,9 @@ class EnhancedCongressIngestor:
         logger.info(f"Congress ingestion completed: {result}")
         return result
 
+    @retry(max_attempts=3, delay=2.0)
+    @rate_limit(calls_per_second=10.0)
+    @cache(ttl_seconds=300)  # 5 minute cache for API responses
     async def _fetch_congress_page(self, congress: int, bill_type: Optional[str],
                                  page: int) -> Optional[Dict[str, Any]]:
         """Fetch a page of Congress data asynchronously."""
@@ -111,6 +137,7 @@ class EnhancedCongressIngestor:
             logger.error(f"Failed to fetch page {page}: {e}")
             return None
 
+    @monitor_performance
     async def _process_batch(self, bills: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Process a batch of bills with enhanced processing."""
         if not bills:
@@ -119,11 +146,10 @@ class EnhancedCongressIngestor:
         # Convert to DataFrame for processing
         df = pd.DataFrame(bills)
 
-        # GPU processing if enabled
-        if self.config.use_gpu:
-            from mcp_server.utils.enhanced_ingestion import GPUDataProcessor
-            gpu_processor = GPUDataProcessor()
-            df = gpu_processor.process_dataframe(df)
+        # GPU processing disabled - use CPU processing instead
+        from mcp_server.utils.enhanced_ingestion import CPUDataProcessor
+        cpu_processor = CPUDataProcessor()
+        df = cpu_processor.process_dataframe(df)
 
         # Normalize data
         normalized_data = []
@@ -202,8 +228,8 @@ async def main():
     parser.add_argument('--congress', type=int, required=True, help='Congress number')
     parser.add_argument('--bill-type', help='Bill type filter')
     parser.add_argument('--api-key', default=os.getenv('CONGRESS_API_KEY'), help='Congress API key')
-    parser.add_argument('--max-pages', type=int, default=100, help='Maximum pages to process')
-    parser.add_argument('--use-gpu', action='store_true', help='Enable GPU processing')
+    parser.add_argument('--max-pages', type=int, default=999999, help='Maximum pages to process')
+    # parser.add_argument('--use-gpu', action='store_true', help='Enable GPU processing (DISABLED - not useful for web ingestion)')
     parser.add_argument('--use-parallel', action='store_true', help='Enable parallel processing')
     parser.add_argument('--use-async', action='store_true', help='Enable async processing')
     parser.add_argument('--batch-size', type=int, default=1000, help='Batch size for processing')
@@ -221,7 +247,7 @@ async def main():
 
     # Create configuration
     config = IngestionConfig(
-        use_gpu=args.use_gpu,
+        use_gpu=False,  # GPU processing disabled - not beneficial for web ingestion
         use_parallel=args.use_parallel,
         use_async=args.use_async,
         batch_size=args.batch_size,
