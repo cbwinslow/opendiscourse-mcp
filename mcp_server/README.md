@@ -522,7 +522,7 @@ curl -X POST http://localhost:8080/mcp/execute \
 ### Run Ingestion
 ```bash
 export DATABASE_URL='postgresql://...'
-python mcp_server/scripts/openstates_ingest.py --jurisdiction nc
+python scripts/ingestion/openstates/openstates_ingest.py --jurisdiction nc
 ```
 
 ## Advanced Usage Examples

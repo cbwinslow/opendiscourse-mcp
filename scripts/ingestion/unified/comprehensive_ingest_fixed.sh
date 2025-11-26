@@ -269,14 +269,14 @@ log ""
 log "🏃 Running data ingestions with safeguards..."
 
 # Clean up any existing stuck processes
-pkill -f "mcp_server/scripts/congress_ingest.py" || true
-pkill -f "mcp_server/scripts/openstates_ingest.py" || true
-pkill -f "mcp_server/scripts/govinfo_ingest.py" || true
+pkill -f "scripts/ingestion/congress/congress_ingest.py" || true
+pkill -f "scripts/ingestion/openstates/openstates_ingest.py" || true
+pkill -f "scripts/ingestion/govinfo/govinfo_ingest.py" || true
 
 # Run with limited pages and safety timeouts
-run_ingestion "Congress" "timeout 600 .venv/bin/python mcp_server/scripts/congress_ingest.py --congress 118 --page 1 --max-pages $MAX_PAGES --timeout $TIMEOUT" "congress_bills" "false" || log "⚠️  Congress ingestion had issues but continuing..."
-run_ingestion "OpenStates" "timeout 600 .venv/bin/python mcp_server/scripts/openstates_ingest.py --jurisdiction us --per_page 25 --max-pages 5 --timeout $TIMEOUT" "opencivicdata_bill" "true" || log "⚠️  OpenStates ingestion had issues but continuing..."
-run_ingestion "GovInfo" "timeout 600 .venv/bin/python mcp_server/scripts/govinfo_ingest.py --collection BILLS --max-pages 3 --timeout $TIMEOUT" "govinfo_documents" "false" || log "⚠️  GovInfo ingestion had issues but continuing..."
+run_ingestion "Congress" "timeout 600 .venv/bin/python scripts/ingestion/congress/congress_ingest.py --congress 118 --page 1 --max-pages $MAX_PAGES --timeout $TIMEOUT" "congress_bills" "false" || log "⚠️  Congress ingestion had issues but continuing..."
+run_ingestion "OpenStates" "timeout 600 .venv/bin/python scripts/ingestion/openstates/openstates_ingest.py --jurisdiction us --per_page 25 --max-pages 5 --timeout $TIMEOUT" "opencivicdata_bill" "true" || log "⚠️  OpenStates ingestion had issues but continuing..."
+run_ingestion "GovInfo" "timeout 600 .venv/bin/python scripts/ingestion/govinfo/govinfo_ingest.py --collection BILLS --max-pages 3 --timeout $TIMEOUT" "govinfo_documents" "false" || log "⚠️  GovInfo ingestion had issues but continuing..."
 
 # Post-ingestion validation
 log ""

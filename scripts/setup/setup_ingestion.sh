@@ -99,7 +99,7 @@ Type=oneshot
 User=$USER
 WorkingDirectory=/home/cbwinslow/opendiscourse
 Environment=DATABASE_URL=$DATABASE_URL
-ExecStart=/home/cbwinslow/opendiscourse/.venv/bin/python mcp_server/scripts/openstates_ingest.py --jurisdiction us --entity bills
+ExecStart=/home/cbwinslow/opendiscourse/.venv/bin/python scripts/ingestion/openstates/openstates_ingest.py --jurisdiction us --entity bills
 EOF
 
 # OpenStates ingestion timer
@@ -165,9 +165,9 @@ echo "📅 Creating cron jobs as backup..."
 
 CRON_JOBS="
 # MCP Server Ingestion Jobs
-0 2 * * * $USER cd /home/cbwinslow/opendiscourse && export \$(cat mcp_server/.env | xargs) && .venv/bin/python mcp_server/scripts/congress_ingest.py --congress 118 >> logs/congress_ingestion.log 2>&1
-0 3 * * * $USER cd /home/cbwinslow/opendiscourse && export \$(cat mcp_server/.env | xargs) && .venv/bin/python mcp_server/scripts/openstates_ingest.py --jurisdiction us --entity bills >> logs/openstates_ingestion.log 2>&1
-0 4 * * * $USER cd /home/cbwinslow/opendiscourse && export \$(cat mcp_server/.env | xargs) && .venv/bin/python mcp_server/scripts/govinfo_ingest.py --collection BILLS >> logs/govinfo_ingestion.log 2>&1
+0 2 * * * $USER cd /home/cbwinslow/opendiscourse && export \$(cat mcp_server/.env | xargs) && .venv/bin/python scripts/ingestion/congress/congress_ingest.py --congress 118 >> logs/congress_ingestion.log 2>&1
+0 3 * * * $USER cd /home/cbwinslow/opendiscourse && export \$(cat mcp_server/.env | xargs) && .venv/bin/python scripts/ingestion/openstates/openstates_ingest.py --jurisdiction us --entity bills >> logs/openstates_ingestion.log 2>&1
+0 4 * * * $USER cd /home/cbwinslow/opendiscourse && export \$(cat mcp_server/.env | xargs) && .venv/bin/python scripts/ingestion/govinfo/govinfo_ingest.py --collection BILLS >> logs/govinfo_ingestion.log 2>&1
 "
 
 # Add to crontab
@@ -255,9 +255,9 @@ run_ingestion() {
 }
 
 # Run all ingestions
-run_ingestion "Congress" ".venv/bin/python mcp_server/scripts/congress_ingest.py --congress 118"
-run_ingestion "OpenStates" ".venv/bin/python mcp_server/scripts/openstates_ingest.py --jurisdiction us --entity bills"
-run_ingestion "GovInfo" ".venv/bin/python mcp_server/scripts/govinfo_ingest.py --collection BILLS"
+run_ingestion "Congress" ".venv/bin/python scripts/ingestion/congress/congress_ingest.py --congress 118"
+run_ingestion "OpenStates" ".venv/bin/python scripts/ingestion/openstates/openstates_ingest.py --jurisdiction us --entity bills"
+run_ingestion "GovInfo" ".venv/bin/python scripts/ingestion/govinfo/govinfo_ingest.py --collection BILLS"
 
 echo "🎉 All manual ingestions completed!"
 EOF

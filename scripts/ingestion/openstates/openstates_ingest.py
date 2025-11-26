@@ -2,7 +2,7 @@
 
 Usage:
   export DATABASE_URL=postgresql://user:pass@localhost:5432/dbname
-  python mcp_server/scripts/openstates_ingest.py --jurisdiction nc --per_page 50
+  python scripts/ingestion/openstates/openstates_ingest.py --jurisdiction nc --per_page 50
 """
 import os
 import argparse

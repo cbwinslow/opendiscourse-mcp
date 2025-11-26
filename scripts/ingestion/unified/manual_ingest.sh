@@ -35,8 +35,8 @@ run_ingestion() {
 }
 
 # Run all ingestions
-run_ingestion "Congress" "PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python mcp_server/scripts/congress_ingest.py --congress 118" "false"
-run_ingestion "OpenStates" "PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python mcp_server/scripts/openstates_ingest.py --jurisdiction us --per_page 50" "true"
-run_ingestion "GovInfo" "PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python mcp_server/scripts/govinfo_ingest.py --collection BILLS" "false"
+run_ingestion "Congress" "PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python scripts/ingestion/congress/congress_ingest.py --congress 118" "false"
+run_ingestion "OpenStates" "PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python scripts/ingestion/openstates/openstates_ingest.py --jurisdiction us --per_page 50" "true"
+run_ingestion "GovInfo" "PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python scripts/ingestion/govinfo/govinfo_ingest.py --collection BILLS" "false"
 
 echo "🎉 All manual ingestions completed!"

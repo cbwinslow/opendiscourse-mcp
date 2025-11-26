@@ -127,7 +127,7 @@ if 'jurisdiction' in data:
             errors.append("Missing jurisdiction.id field")
 ```
 
-#### **File:** `/mcp_server/scripts/openstates_ingest.py`
+#### **File:** `scripts/ingestion/openstates/openstates_ingest.py`
 
 **Enhanced Normalization:**
 - **Safe type conversion:** Lists, strings, and null handling
@@ -187,7 +187,7 @@ def normalize_bill(bill: dict) -> dict:
 
 ### **Script Updates:**
 - `/mcp_server/scripts/enhanced_congress_ingest.py` - Updated to use new monitoring
-- `/mcp_server/scripts/openstates_ingest.py` - Enhanced type safety and validation
+- `scripts/ingestion/openstates/openstates_ingest.py` - Enhanced type safety and validation
 
 ### **Testing:**
 - `/tests/test_api_data_validation.py` - Fixed OpenStates v3 API validation

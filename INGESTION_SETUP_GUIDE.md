@@ -80,13 +80,13 @@ Run specific ingestion scripts:
 
 ```bash
 # Congress bills
-PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python mcp_server/scripts/congress_ingest.py --congress 118
+PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python scripts/ingestion/congress/congress_ingest.py --congress 118
 
 # OpenStates data
-PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python mcp_server/scripts/openstates_ingest.py --jurisdiction us --entity bills
+PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python scripts/ingestion/openstates/openstates_ingest.py --jurisdiction us --entity bills
 
 # GovInfo documents
-PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python mcp_server/scripts/govinfo_ingest.py --collection BILLS
+PYTHONPATH=/home/cbwinslow/opendiscourse .venv/bin/python scripts/ingestion/govinfo/govinfo_ingest.py --collection BILLS
 ```
 
 ### API-Based Ingestion

@@ -277,7 +277,7 @@ export REDIS_URL="redis://localhost:6379"  # Optional, for caching</code>
               <div>
                 <h4 className="font-semibold text-gray-900 mb-2">OpenStates Data Ingestion</h4>
                 <pre className="bg-gray-900 text-green-400 p-3 rounded text-sm mb-3">
-                  <code>python mcp_server/scripts/openstates_ingest.py \
+                  <code>python scripts/ingestion/openstates/openstates_ingest.py \
   --jurisdiction nc \
   --use-parallel</code>
                 </pre>

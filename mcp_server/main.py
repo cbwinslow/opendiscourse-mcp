@@ -150,9 +150,9 @@ def ingest_data(payload: IngestionRequest):
 
     # Map site to script
     script_map = {
-        "openstates": "mcp_server/scripts/openstates_ingest.py",
-        "congress": "mcp_server/scripts/congress_ingest.py",
-        "govinfo": "mcp_server/scripts/govinfo_ingest.py"
+        "openstates": "scripts/ingestion/openstates/openstates_ingest.py",
+        "congress": "scripts/ingestion/congress/congress_ingest.py",
+        "govinfo": "scripts/ingestion/govinfo/govinfo_ingest.py"
     }
 
     if site not in script_map:

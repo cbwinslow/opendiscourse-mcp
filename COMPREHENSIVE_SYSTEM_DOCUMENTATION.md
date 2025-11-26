@@ -529,13 +529,13 @@ export DATABASE_URL=postgresql://user:pass@localhost:5432/dbname
 export OPENSTATES_API_KEY=your_api_key
 
 # Basic usage - ingest bills from California
-python mcp_server/scripts/openstates_ingest.py --jurisdiction ca
+python scripts/ingestion/openstates/openstates_ingest.py --jurisdiction ca
 
 # Search by keywords
-python mcp_server/scripts/openstates_ingest.py --jurisdiction ca --q "education budget"
+python scripts/ingestion/openstates/openstates_ingest.py --jurisdiction ca --q "education budget"
 
 # Control pagination
-python mcp_server/scripts/openstates_ingest.py --jurisdiction ca --page 1 --per_page 50
+python scripts/ingestion/openstates/openstates_ingest.py --jurisdiction ca --page 1 --per_page 50
 ```
 
 **Parameters:**
@@ -1143,7 +1143,7 @@ python mcp_server/scripts/congress_ingest.py --congress 118 --billType hr
 export OPENSTATES_API_KEY="your_openstates_api_key"
 
 # Ingest California bills
-python mcp_server/scripts/openstates_ingest.py --jurisdiction ca --q "education"
+python scripts/ingestion/openstates/openstates_ingest.py --jurisdiction ca --q "education"
 ```
 
 #### 3. Government Publications

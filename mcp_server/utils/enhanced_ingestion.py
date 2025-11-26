@@ -613,13 +613,13 @@ class EnhancedIngestionManager:
         base_cmd = f"cd {remote_config.get('remote_path', '/app')} && python"
 
         if job.source == "congress":
-            script = "mcp_server/scripts/congress_ingest.py"
+            script = "scripts/ingestion/congress/congress_ingest.py"
             params = f"--congress {job.parameters.get('congress', '')}"
         elif job.source == "openstates":
-            script = "mcp_server/scripts/openstates_ingest.py"
+            script = "scripts/ingestion/openstates/openstates_ingest.py"
             params = f"--jurisdiction {job.parameters.get('jurisdiction', '')}"
         elif job.source == "govinfo":
-            script = "mcp_server/scripts/govinfo_ingest.py"
+            script = "scripts/ingestion/govinfo/govinfo_ingest.py"
             params = f"--collection {job.parameters.get('collection', '')}"
         else:
             raise ValueError(f"Unknown source: {job.source}")
