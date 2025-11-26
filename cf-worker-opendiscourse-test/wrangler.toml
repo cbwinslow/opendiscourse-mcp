@@ -1,0 +1,18 @@
+      name = "opendiscourse-ingest-worker"
+      main = "src/index.ts"
+      compatibility_date = "2025-01-01"
+
+      workers_dev = true
+
+      [[hyperdrive]]
+      binding = "OPENDISCOURSE_DB"
+      id = "9880dcaa74f64259a0f19403af94ff2a"
+
+      [vars]
+      INGEST_AI_ENDPOINT_URL = "https://mcp.opendiscourse.net/ingest-agent" # Placeholder
+      CLOUDFLARE_ACCOUNT_ID = "968ff4ee9f5e59bc6c72758269d6b9d6" # From Bitwarden
+      CLOUDFLARE_ZONE_ID = "414bd44719253f65754a09cc4b60bd6f" # From Bitwarden
+      CLOUDFLARE_API_TOKEN = "qOwP9iZVp4-KIUPSTpNE4BqLzTO7y-dgg2h4LwC-" # From Bitwarden (using TOKEN_ACCOUNTS)
+
+      [observability]
+      enabled = true

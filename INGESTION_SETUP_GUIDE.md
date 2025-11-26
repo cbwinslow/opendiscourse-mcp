@@ -6,7 +6,7 @@ Your homelab PostgreSQL database ingestion processes are now configured! This gu
 ## Current Setup
 
 ### Database
-- **Location**: `postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse`
+- **Location**: `postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse`
 - **Schemas**: Congress, GovInfo, OpenStates (all initialized ✅)
 - **Status**: Connected and ready ✅
 
@@ -99,7 +99,7 @@ curl -X POST "http://localhost:8000/mcp/ingest_data" \
   -d '{
     "user_id": "admin",
     "site": "congress",
-    "database_url": "postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse",
+    "database_url": "postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse",
     "ingestion_mode": "incremental"
   }'
 
@@ -109,7 +109,7 @@ curl -X POST "http://localhost:8000/mcp/ingest_data" \
   -d '{
     "user_id": "admin",
     "site": "govinfo",
-    "database_url": "postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse",
+    "database_url": "postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse",
     "ingestion_mode": "incremental"
   }'
 ```
@@ -117,10 +117,10 @@ curl -X POST "http://localhost:8000/mcp/ingest_data" \
 ### Querying Data
 ```bash
 # Get recent bills
-curl "http://localhost:8000/mcp/query_data?user_id=admin&database_url=postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse&table=congress_bills&limit=5"
+curl "http://localhost:8000/mcp/query_data?user_id=admin&database_url=postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse&table=congress_bills&limit=5"
 
 # Get GovInfo packages
-curl "http://localhost:8000/mcp/query_data?user_id=admin&database_url=postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse&table=govinfo_packages&limit=5"
+curl "http://localhost:8000/mcp/query_data?user_id=admin&database_url=postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse&table=govinfo_packages&limit=5"
 ```
 
 ## Monitoring & Troubleshooting
@@ -152,10 +152,10 @@ curl "http://localhost:8000/mcp/query_data?user_id=admin&database_url=postgresql
 ### Health Checks
 ```bash
 # Check database connectivity
-psql "postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse" -c "SELECT 1;"
+psql "postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse" -c "SELECT 1;"
 
 # Check table counts
-psql "postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse" -c "
+psql "postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse" -c "
 SELECT 'congress_bills' as table, COUNT(*) FROM congress_bills
 UNION ALL
 SELECT 'openstates_bills', COUNT(*) FROM openstates_bills
@@ -185,10 +185,10 @@ Edit the cron jobs in `crontab -e`:
 ### Backup Strategy
 ```bash
 # Database backup
-pg_dump "postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse" > opendiscourse_backup_$(date +%Y%m%d).sql
+pg_dump "postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse" > opendiscourse_backup_$(date +%Y%m%d).sql
 
 # Restore backup
-psql "postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse" < opendiscourse_backup_20241201.sql
+psql "postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse" < opendiscourse_backup_20241201.sql
 ```
 
 ## Performance Tuning

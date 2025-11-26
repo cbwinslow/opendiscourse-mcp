@@ -1,0 +1,15 @@
+{
+  "run_at": "2025-11-23T16:43:32Z",
+  "collections": [
+    "summaries"
+  ],
+  "stats": [
+    {
+      "collection": "summaries",
+      "items": 0,
+      "pages": 0,
+      "errors": 1,
+      "seconds": 5.81
+    }
+  ]
+}

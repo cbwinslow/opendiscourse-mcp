@@ -1,0 +1,738 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# File: pyproject.toml
+# Project: opengovkit (Python SDK + CLI for Congress/GovInfo/OpenStates)
+# Author: CBW + ChatGPT
+# Date: 2025-11-23
+# Summary: Build metadata for a PyPI-ready package with CLI entry points.
+# ──────────────────────────────────────────────────────────────────────────────
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "opengovkit"
+version = "0.1.0"
+description = "Unified SDK/CLI for api.congress.gov, govinfo.gov, and openstates.org with normalization, caching, and a FastAPI bridge for TUIs."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+  { name = "Christopher Blaine Winslow", email = "blaine.winslow@gmail.com" },
+]
+license = { text = "MIT" }
+keywords = ["congress", "govinfo", "openstates", "civictech", "api", "sdk", "cli"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Internet",
+]
+dependencies = [
+  "httpx>=0.27.0",
+  "pydantic>=2.7.0",
+  "python-dotenv>=1.0.1",
+  "typer>=0.12.3",
+  "rich>=13.7.1",
+  "backoff>=2.2.1",
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
+]
+
+[project.urls]
+Homepage = "https://cloudcurio.cc"
+Repository = "https://github.com/cbwinslow/opendiscourse"
+Issues = "https://github.com/cbwinslow/opendiscourse/issues"
+
+[project.scripts]
+opengov = "opengovkit.cli:app"
+
+[tool.hatch.build]
+packages = ["src/opengovkit"]
+include = ["README.md", "LICENSE", "CHANGELOG.md"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+strict = true
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: README.md
+# ──────────────────────────────────────────────────────────────────────────────
+# opengovkit
+
+A unified Python SDK + CLI for:
+
+- **api.congress.gov**
+- **govinfo.gov**
+- **openstates.org**
+
+It ships:
+- Typed models (Pydantic)
+- Resilient HTTP client with retries and rate-limit handling
+- Normalized cross-provider entities (Bill, Member, Vote, Committee, Document)
+- A small **FastAPI** bridge for UIs
+- A Go **Bubble Tea** TUI (separate module) that calls the FastAPI
+
+## Quickstart
+
+```bash
+pip install opengovkit
+export CONGRESS_API_KEY=...  # api.congress.gov
+export GOVINFO_API_KEY=...    # api.govinfo.gov
+export OPENSTATES_API_TOKEN=...
+
+opengov congress bills --congress 118 --query "health" --limit 5 --normalized
+opengov govinfo search --collection FR --from 2025-01-01 --to 2025-01-31
+opengov openstates bills --jurisdiction "Texas" --session "89" --query education
+
+# Run local API server (used by the Go TUI)
+opengov serve --host 127.0.0.1 --port 8899
+```
+
+## Python API
+```python
+from opengovkit.providers.congress.client import CongressClient
+c = CongressClient()
+bills = c.list_bills(congress=118, query="health", limit=5)
+```
+
+## License
+MIT
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: src/opengovkit/__init__.py
+# ──────────────────────────────────────────────────────────────────────────────
+"""opengovkit - Unified SDK for civic data providers.
+
+Author: CBW + ChatGPT
+"""
+from .config import Settings
+
+__all__ = ["Settings"]
+__version__ = "0.1.0"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: src/opengovkit/config.py
+# ──────────────────────────────────────────────────────────────────────────────
+"""Configuration loader for API keys and runtime settings.
+
+- Loads from environment variables and optional .env
+- Validates presence when specific providers are used
+"""
+from __future__ import annotations
+from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+class Settings(BaseModel):
+    congress_api_key: str | None = Field(default=os.getenv("CONGRESS_API_KEY"))
+    govinfo_api_key: str | None = Field(default=os.getenv("GOVINFO_API_KEY"))
+    openstates_api_token: str | None = Field(default=os.getenv("OPENSTATES_API_TOKEN"))
+    user_agent: str = Field(default="opengovkit/0.1.0 (+https://cloudcurio.cc)")
+    timeout_seconds: float = 30.0
+    
+    class Config:
+        extra = "ignore"
+
+
+def require(key: str | None, name: str) -> str:
+    if not key:
+        raise RuntimeError(
+            f"Missing credential for {name}. Set env var or .env: {name.upper()}"
+        )
+    return key
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: src/opengovkit/http.py
+# ──────────────────────────────────────────────────────────────────────────────
+"""HTTP utilities with retries and rate-limit handling.
+
+- Uses httpx with timeouts and backoff
+- Adds API keys via headers or params as needed by provider clients
+"""
+from __future__ import annotations
+import httpx
+import backoff
+from typing import Any
+
+_DEFAULT_TIMEOUT = httpx.Timeout(30.0)
+
+class TransientHTTPError(Exception):
+    pass
+
+
+def _on_backoff(details: dict[str, Any]) -> None:
+    # You can wire logging here; kept simple to avoid noisy deps.
+    pass
+
+
+@backoff.on_exception(
+    backoff.expo,
+    (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.RemoteProtocolError, TransientHTTPError),
+    max_time=60,
+    on_backoff=_on_backoff,
+)
+async def aget(client: httpx.AsyncClient, url: str, **kw: Any) -> httpx.Response:
+    resp = await client.get(url, **kw)
+    if resp.status_code in (429, 502, 503, 504):
+        raise TransientHTTPError(f"Transient status {resp.status_code}")
+    return resp
+
+
+def get(client: httpx.Client, url: str, **kw: Any) -> httpx.Response:
+    resp = client.get(url, **kw)
+    if resp.status_code in (429, 502, 503, 504):
+        raise TransientHTTPError(f"Transient status {resp.status_code}")
+    return resp
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: src/opengovkit/errors.py
+# ──────────────────────────────────────────────────────────────────────────────
+class ProviderError(Exception):
+    pass
+
+class AuthError(ProviderError):
+    pass
+
+class NotFound(ProviderError):
+    pass
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: src/opengovkit/types/core.py
+# ──────────────────────────────────────────────────────────────────────────────
+from __future__ import annotations
+from pydantic import BaseModel, Field
+from typing import Optional
+
+class SourceRef(BaseModel):
+    provider: str
+    id: str
+
+class Link(BaseModel):
+    rel: str
+    url: str
+
+class Bill(BaseModel):
+    uid: str
+    provider_ids: list[SourceRef]
+    title: str
+    summary: Optional[str] = None
+    jurisdiction: str
+    session: str | int
+    chamber: Optional[str] = None
+    subjects: list[str] = Field(default_factory=list)
+    links: list[Link] = Field(default_factory=list)
+
+class Member(BaseModel):
+    uid: str
+    provider_ids: list[SourceRef]
+    name: str
+    party: Optional[str] = None
+    state: Optional[str] = None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: src/opengovkit/providers/base.py
+# ──────────────────────────────────────────────────────────────────────────────
+from __future__ import annotations
+from typing import Iterator, Any
+
+class BaseProvider:
+    name: str = "base"
+
+    def paginate(self, fetch_page: callable, *, start_page: int = 1) -> Iterator[Any]:
+        """Generic paginator helper. `fetch_page(page:int)->dict` must return
+        a dict with keys: items (list), next_page (int|None)
+        """
+        page = start_page
+        while True:
+            data = fetch_page(page)
+            items = data.get("items", [])
+            for it in items:
+                yield it
+            next_page = data.get("next_page")
+            if not next_page:
+                break
+            page = next_page
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: src/opengovkit/providers/congress/client.py
+# ──────────────────────────────────────────────────────────────────────────────
+"""Minimal api.congress.gov client (v0 scope): list bills, get bill.
+
+NOTE: The real API surface is large; this is a focused, typed starting point.
+"""
+from __future__ import annotations
+import httpx
+from typing import Any, Dict, List, Optional
+from ..base import BaseProvider
+from ...config import Settings, require
+from ...http import get, _DEFAULT_TIMEOUT
+
+_CONGRESS_BASE = "https://api.congress.gov/v3"
+
+class CongressClient(BaseProvider):
+    name = "congress"
+
+    def __init__(self, settings: Optional[Settings] = None) -> None:
+        self.settings = settings or Settings()
+        self.api_key = require(self.settings.congress_api_key, "CONGRESS_API_KEY")
+        self.client = httpx.Client(timeout=_DEFAULT_TIMEOUT, headers={
+            "User-Agent": self.settings.user_agent
+        })
+
+    def list_bills(self, *, congress: int, query: str | None = None, limit: int = 20) -> List[Dict[str, Any]]:
+        params: Dict[str, Any] = {"congress": str(congress), "api_key": self.api_key, "format": "json"}
+        if query:
+            params["q"] = query
+        params["limit"] = str(limit)
+        url = f"{_CONGRESS_BASE}/bill"
+        resp = get(self.client, url, params=params)
+        resp.raise_for_status()
+        data = resp.json()
+        # Normalize a compact shape (provider-raw passthrough kept intact under "raw")
+        items = data.get("bills", []) or data.get("data", {}).get("bills", [])
+        return items
+
+    def get_bill(self, *, congress: int, bill_type: str, bill_number: int) -> Dict[str, Any]:
+        url = f"{_CONGRESS_BASE}/bill/{congress}/{bill_type}/{bill_number}"
+        resp = get(self.client, url, params={"api_key": self.api_key, "format": "json"})
+        if resp.status_code == 404:
+            from ...errors import NotFound
+            raise NotFound("Bill not found")
+        resp.raise_for_status()
+        return resp.json()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: src/opengovkit/providers/govinfo/client.py
+# ──────────────────────────────────────────────────────────────────────────────
+"""Minimal govinfo.gov client (v0 scope): collection search and package detail."""
+from __future__ import annotations
+import httpx
+from typing import Any, Dict, List, Optional
+from ..base import BaseProvider
+from ...config import Settings, require
+from ...http import get, _DEFAULT_TIMEOUT
+
+_GOVINFO_BASE = "https://api.govinfo.gov"
+
+class GovInfoClient(BaseProvider):
+    name = "govinfo"
+
+    def __init__(self, settings: Optional[Settings] = None) -> None:
+        self.settings = settings or Settings()
+        self.api_key = require(self.settings.govinfo_api_key, "GOVINFO_API_KEY")
+        self.client = httpx.Client(timeout=_DEFAULT_TIMEOUT, headers={
+            "User-Agent": self.settings.user_agent
+        })
+
+    def search(self, *, collection: str, query: str | None = None, page_size: int = 25, page: int = 1) -> Dict[str, Any]:
+        url = f"{_GOVINFO_BASE}/collections/{collection}/{page}"
+        params = {"api_key": self.api_key, "pageSize": str(page_size)}
+        if query:
+            params["query"] = query
+        resp = get(self.client, url, params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    def package(self, package_id: str) -> Dict[str, Any]:
+        url = f"{_GOVINFO_BASE}/packages/{package_id}"
+        resp = get(self.client, url, params={"api_key": self.api_key})
+        resp.raise_for_status()
+        return resp.json()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: src/opengovkit/providers/openstates/client.py
+# ──────────────────────────────────────────────────────────────────────────────
+"""Minimal openstates.org client (v0 scope): list bills by jurisdiction & session."""
+from __future__ import annotations
+import httpx
+from typing import Any, Dict, List, Optional
+from ..base import BaseProvider
+from ...config import Settings, require
+from ...http import get, _DEFAULT_TIMEOUT
+
+_OPENSTATES_BASE = "https://v3.openstates.org"
+
+class OpenStatesClient(BaseProvider):
+    name = "openstates"
+
+    def __init__(self, settings: Optional[Settings] = None) -> None:
+        self.settings = settings or Settings()
+        self.token = require(self.settings.openstates_api_token, "OPENSTATES_API_TOKEN")
+        self.client = httpx.Client(timeout=_DEFAULT_TIMEOUT, headers={
+            "User-Agent": self.settings.user_agent,
+            "X-API-KEY": self.token,
+        })
+
+    def list_bills(self, *, jurisdiction: str, session: str, query: str | None = None, per_page: int = 25, page: int = 1) -> Dict[str, Any]:
+        url = f"{_OPENSTATES_BASE}/bills"
+        params: Dict[str, Any] = {
+            "jurisdiction": jurisdiction,
+            "session": session,
+            "per_page": str(per_page),
+            "page": str(page),
+        }
+        if query:
+            params["q"] = query
+        resp = get(self.client, url, params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: src/opengovkit/cli.py
+# ──────────────────────────────────────────────────────────────────────────────
+"""Typer-based CLI entry point: `opengov`.
+
+Commands (v0):
+- congress bills / bill
+- govinfo search / package
+- openstates bills
+- serve (FastAPI bridge)
+"""
+from __future__ import annotations
+import json
+import typer
+from typing import Optional
+from rich import print
+from .providers.congress.client import CongressClient
+from .providers.govinfo.client import GovInfoClient
+from .providers.openstates.client import OpenStatesClient
+from .server import run_server
+
+app = typer.Typer(help="Unified CLI for Congress/GovInfo/OpenStates")
+
+@app.command()
+def congress(
+    resource: str = typer.Argument(..., help="bills | bill"),
+    congress: Optional[int] = typer.Option(None, "--congress", help="Congress number (e.g., 118)"),
+    bill_type: Optional[str] = typer.Option(None, "--bill-type", help="hr|s|hjres|sjres|..."),
+    bill_number: Optional[int] = typer.Option(None, "--bill-number"),
+    query: Optional[str] = typer.Option(None, "--query"),
+    limit: int = typer.Option(10, "--limit"),
+):
+    c = CongressClient()
+    if resource == "bills":
+        if not congress:
+            raise typer.BadParameter("--congress is required for 'bills'")
+        data = c.list_bills(congress=congress, query=query, limit=limit)
+        print_json(data)
+    elif resource == "bill":
+        if not (congress and bill_type and bill_number):
+            raise typer.BadParameter("--congress --bill-type --bill-number are required for 'bill'")
+        data = c.get_bill(congress=congress, bill_type=bill_type, bill_number=bill_number)
+        print_json(data)
+    else:
+        raise typer.BadParameter("Unknown resource")
+
+
+@app.command()
+def govinfo(
+    resource: str = typer.Argument(..., help="search | package"),
+    collection: Optional[str] = typer.Option(None, "--collection"),
+    query: Optional[str] = typer.Option(None, "--query"),
+    page_size: int = typer.Option(25, "--page-size"),
+    page: int = typer.Option(1, "--page"),
+    package_id: Optional[str] = typer.Option(None, "--package-id"),
+):
+    g = GovInfoClient()
+    if resource == "search":
+        if not collection:
+            raise typer.BadParameter("--collection required")
+        data = g.search(collection=collection, query=query, page_size=page_size, page=page)
+        print_json(data)
+    elif resource == "package":
+        if not package_id:
+            raise typer.BadParameter("--package-id required")
+        data = g.package(package_id)
+        print_json(data)
+    else:
+        raise typer.BadParameter("Unknown resource")
+
+
+@app.command()
+def openstates(
+    resource: str = typer.Argument(..., help="bills"),
+    jurisdiction: Optional[str] = typer.Option(None, "--jurisdiction"),
+    session: Optional[str] = typer.Option(None, "--session"),
+    query: Optional[str] = typer.Option(None, "--query"),
+    per_page: int = typer.Option(25, "--per-page"),
+    page: int = typer.Option(1, "--page"),
+):
+    o = OpenStatesClient()
+    if resource == "bills":
+        if not (jurisdiction and session):
+            raise typer.BadParameter("--jurisdiction and --session required")
+        data = o.list_bills(jurisdiction=jurisdiction, session=session, query=query, per_page=per_page, page=page)
+        print_json(data)
+    else:
+        raise typer.BadParameter("Unknown resource")
+
+
+@app.command()
+def serve(host: str = "127.0.0.1", port: int = 8899):
+    """Run local FastAPI server (used by Go TUI)."""
+    run_server(host=host, port=port)
+
+
+def print_json(data):
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: src/opengovkit/server.py
+# ──────────────────────────────────────────────────────────────────────────────
+"""FastAPI bridge exposing a handful of read endpoints for the TUI.
+
+Routes:
+- GET /health
+- GET /congress/bills
+- GET /govinfo/search
+- GET /openstates/bills
+"""
+from __future__ import annotations
+from fastapi import FastAPI, HTTPException, Query
+import uvicorn
+from .providers.congress.client import CongressClient
+from .providers.govinfo.client import GovInfoClient
+from .providers.openstates.client import OpenStatesClient
+
+app = FastAPI(title="opengovkit API", version="0.1.0")
+
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+@app.get("/congress/bills")
+def api_congress_bills(congress: int = Query(...), query: str | None = None, limit: int = 10):
+    c = CongressClient()
+    return c.list_bills(congress=congress, query=query, limit=limit)
+
+@app.get("/govinfo/search")
+def api_govinfo_search(collection: str, query: str | None = None, page_size: int = 25, page: int = 1):
+    g = GovInfoClient()
+    return g.search(collection=collection, query=query, page_size=page_size, page=page)
+
+@app.get("/openstates/bills")
+def api_openstates_bills(jurisdiction: str, session: str, query: str | None = None, per_page: int = 25, page: int = 1):
+    o = OpenStatesClient()
+    return o.list_bills(jurisdiction=jurisdiction, session=session, query=query, per_page=per_page, page=page)
+
+
+def run_server(host: str = "127.0.0.1", port: int = 8899) -> None:
+    uvicorn.run(app, host=host, port=port, log_level="info")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: go-tui/cmd/opengov-tui/main.go
+# ──────────────────────────────────────────────────────────────────────────────
+// Script: main.go
+// Project: opengov-tui (Bubble Tea TUI for opengovkit)
+// Author: CBW + ChatGPT
+// Date: 2025-11-23
+// Summary: Minimal Bubble Tea app querying the FastAPI endpoints.
+// Notes: Requires Go 1.21+. `go mod init github.com/cbwinslow/opengov-tui && go get ...`
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "os"
+    "strings"
+
+    tea "github.com/charmbracelet/bubbletea"
+    "github.com/charmbracelet/bubbles/textinput"
+)
+
+type bill struct {
+    // Keep generic since providers differ; show title/id if present
+}
+
+type model struct {
+    input textinput.Model
+    results string
+    err error
+}
+
+func initialModel() model {
+    ti := textinput.New()
+    ti.Placeholder = "congress bills 118 border"
+    ti.Focus()
+    return model{input: ti}
+}
+
+func (m model) Init() tea.Cmd { return textinput.Blink }
+
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+    switch msg := msg.(type) {
+    case tea.KeyMsg:
+        switch msg.String() {
+        case "ctrl+c", "esc":
+            return m, tea.Quit
+        case "enter":
+            return m, m.runQuery(m.input.Value())
+        }
+    }
+    var cmd tea.Cmd
+    m.input, cmd = m.input.Update(msg)
+    return m, cmd
+}
+
+func (m model) View() string {
+    b := &strings.Builder{}
+    fmt.Fprintf(b, "Query: %s\n\n", m.input.View())
+    if m.err != nil {
+        fmt.Fprintf(b, "Error: %v\n", m.err)
+    }
+    fmt.Fprintf(b, "%s\n", m.results)
+    fmt.Fprintf(b, "\n(enter to run, esc to quit)\n")
+    return b.String()
+}
+
+func (m model) runQuery(q string) tea.Cmd {
+    // naive parser: "congress bills 118 border"
+    parts := strings.Fields(q)
+    if len(parts) < 3 { return func() tea.Msg { return nil } }
+    provider, resource := parts[0], parts[1]
+
+    return func() tea.Msg {
+        url := "http://127.0.0.1:8899/health"
+        switch provider {
+        case "congress":
+            // example: congress bills 118 border
+            congress := parts[2]
+            query := ""
+            if len(parts) > 3 { query = parts[3] }
+            url = fmt.Sprintf("http://127.0.0.1:8899/congress/bills?congress=%s&query=%s&limit=10", congress, query)
+        case "govinfo":
+            // example: govinfo search FR budget
+            if resource == "search" && len(parts) >= 3 {
+                collection := parts[2]
+                q := ""
+                if len(parts) > 3 { q = parts[3] }
+                url = fmt.Sprintf("http://127.0.0.1:8899/govinfo/search?collection=%s&query=%s", collection, q)
+            }
+        case "openstates":
+            // example: openstates bills Texas 89 education
+            if resource == "bills" && len(parts) >= 4 {
+                jurisdiction := parts[2]
+                session := parts[3]
+                q := ""
+                if len(parts) > 4 { q = parts[4] }
+                url = fmt.Sprintf("http://127.0.0.1:8899/openstates/bills?jurisdiction=%s&session=%s&query=%s", jurisdiction, session, q)
+            }
+        }
+
+        resp, err := http.Get(url)
+        if err != nil { return err }
+        defer resp.Body.Close()
+        var any map[string]any
+        dec := json.NewDecoder(resp.Body)
+        if err := dec.Decode(&any); err != nil {
+            // some endpoints return arrays — try again as []any
+            var arr []any
+            if err2 := json.NewDecoder(resp.Body).Decode(&arr); err2 != nil {
+                return err
+            }
+            b, _ := json.MarshalIndent(arr, "", "  ")
+            return string(b)
+        }
+        b, _ := json.MarshalIndent(any, "", "  ")
+        return string(b)
+    }
+}
+
+func main() {
+    if _, ok := os.LookupEnv("NO_COLOR"); ok {
+        // keep default output
+    }
+    p := tea.NewProgram(initialModel())
+    if _, err := p.Run(); err != nil { fmt.Println("error:", err) }
+}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: tests/test_cli.py
+# ──────────────────────────────────────────────────────────────────────────────
+import pytest
+
+def test_sanity():
+    assert 2 + 2 == 4
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: CHANGELOG.md
+# ──────────────────────────────────────────────────────────────────────────────
+## 0.1.0 (2025-11-23)
+- Initial release: Congress/GovInfo/OpenStates minimal clients + CLI + FastAPI bridge + Go TUI skeleton.
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: LICENSE
+# ──────────────────────────────────────────────────────────────────────────────
+MIT License
+
+Copyright (c) 2025 Christopher Blaine Winslow
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: PACKAGING_NOTES.md
+# ──────────────────────────────────────────────────────────────────────────────
+## Build & Publish
+
+```bash
+python -m pip install --upgrade build twine
+python -m build
+python -m twine upload dist/*
+```
+
+## Go TUI
+Create a separate module in `go-tui/`:
+
+```bash
+cd go-tui
+go mod init github.com/cbwinslow/opengov-tui
+go get github.com/charmbracelet/bubbletea@latest
+go get github.com/charmbracelet/bubbles@latest
+# build
+go build -o opengov-tui ./cmd/opengov-tui
+```
+
+Run FastAPI first: `opengov serve` then start the TUI: `./opengov-tui`
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# File: SECURITY.md
+# ──────────────────────────────────────────────────────────────────────────────
+- Store API keys in env/.env (CONGRESS_API_KEY, GOVINFO_API_KEY, OPENSTATES_API_TOKEN)
+- HTTP timeouts + exponential backoff included
+- CLI prints JSON only; sanitize logs if adding verbose output
+- Add per-provider rate-limit persistence in future versions

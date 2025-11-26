@@ -9,7 +9,7 @@ echo "==========================================="
 
 # Load environment
 source "/home/cbwinslow/opendiscourse/.venv/bin/activate"
-export DATABASE_URL="postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse"
+export DATABASE_URL="postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse"
 export CONGRESS_API_KEY="U71JFZEqNsiSranCdbrj4pZaobtoMtAnl18cIJc2"
 export PYTHONPATH="/home/cbwinslow/opendiscourse"
 

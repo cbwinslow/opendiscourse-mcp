@@ -107,7 +107,7 @@ OLLAMA_HOST=http://localhost:11434
 SCREEN_CAPTURE_INTERVAL=30
 ACTIVITY_LOG_INTERVAL=60
 SYNC_INTERVAL=300
-HOMELAB_URL=http://100.90.23.60:8080
+HOMELAB_URL=http://100.90.251.120:8080
 DATA_RETENTION_DAYS=90
 ```
 
@@ -120,7 +120,7 @@ DATA_RETENTION_DAYS=90
 | `SCREEN_CAPTURE_INTERVAL` | 30 | Seconds between screenshots |
 | `ACTIVITY_LOG_INTERVAL` | 60 | Seconds between activity logs |
 | `SYNC_INTERVAL` | 300 | Seconds between sync attempts |
-| `HOMELAB_URL` | http://100.90.23.60:8080 | Homelab endpoint |
+| `HOMELAB_URL` | http://100.90.251.120:8080 | Homelab endpoint |
 | `DATA_RETENTION_DAYS` | 90 | Days to keep data locally |
 
 ---
@@ -534,7 +534,7 @@ groups
 ### Sync Configuration
 ```bash
 # Homelab connection settings
-HOMELAB_URL=http://100.90.23.60:8080
+HOMELAB_URL=http://100.90.251.120:8080
 HOMELAB_USER=cbwinslow
 HOMELAB_KEY=your_ssh_key
 

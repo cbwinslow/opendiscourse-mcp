@@ -10,7 +10,7 @@ echo "==========================================="
 # Configuration
 LOG_DIR="/home/cbwinslow/opendiscourse/logs"
 SCRIPT_DIR="/home/cbwinslow/opendiscourse/mcp_server/scripts"
-DB_URL="postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse"
+DB_URL="postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse"
 
 # Congress numbers
 CONGRESSES=(109 110 111 112 113 114 115 116 117 118 119)

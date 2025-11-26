@@ -307,6 +307,94 @@ with monitor.monitor_job(job_id):
 - Proactive issue detection
 - Rapid incident response
 
+## 🤖 **AI AGENT LOGGING REQUIREMENTS**
+
+### **Rule 11: Comprehensive AI Logging**
+- **ALWAYS** log all AI agent reasoning, conversations, thoughts, and decision-making processes to `journals/journal.md`
+- **NEVER** perform any action without documenting the reasoning and context
+- **ALWAYS** append to the journal in chronological order with timestamps
+- **NEVER** delete or modify existing journal entries
+- **ALWAYS** include session context, user requests, and agent responses
+
+**Violation Consequence**: Loss of accountability, debugging difficulties, knowledge gaps
+
+### **Rule 12: Journal Append-Only Policy**
+- **NEVER** edit or delete existing journal entries
+- **ALWAYS** append new entries with clear timestamps and agent identification
+- **NEVER** use the journal for temporary notes or drafts
+- **ALWAYS** maintain chronological integrity of the journal
+
+**Violation Consequence**: Historical record corruption, audit trail breaks
+
+## 📋 **TODO LIST MANAGEMENT RULES**
+
+### **Rule 13: Structured Todo Requirements**
+- **ALWAYS** create todo lists for tasks with 3+ steps or significant complexity
+- **NEVER** proceed with complex tasks without a structured todo list
+- **ALWAYS** include microgoals, completion criteria, and tests for each todo item
+- **NEVER** mark todos as complete without demonstrating completion through tests
+
+**Violation Consequence**: Incomplete work, quality issues, accountability gaps
+
+### **Rule 14: Todo Item Structure**
+Each todo item **MUST** include:
+- **Microgoals**: Specific, measurable sub-objectives
+- **Completion Criteria**: Clear conditions for marking as complete
+- **Test Requirements**: Specific tests to verify completion
+- **Demonstration**: Actual test execution and results
+
+**Violation Consequence**: Ambiguous requirements, unverified completion
+
+### **Rule 15: Todo Completion Protocol**
+- **ALWAYS** run and document all required tests before marking complete
+- **NEVER** mark todos complete without test verification
+- **ALWAYS** update todo status in real-time during work
+- **NEVER** batch completions without individual verification
+- **ALWAYS** sign off on completed todos with agent identification
+
+**Violation Consequence**: False completion status, undetected failures
+
+## 🚀 **GITHUB COMMIT PROCEDURES**
+
+### **Rule 16: Todo Archive Requirements**
+- **ALWAYS** commit completed todo lists to https://github.com/cbwinslow/mkdocs
+- **NEVER** complete complex tasks without archiving the todo list
+- **ALWAYS** create a dedicated folder in the mkdocs repo for todo archives
+- **NEVER** modify archived todos after commit
+
+**Violation Consequence**: Loss of work documentation, accountability gaps
+
+### **Rule 17: Commit Protocol**
+When completing todos:
+1. Update all todo items with completion status and test results
+2. Sign off on the todo list with agent name and timestamp
+3. Clone/pull the mkdocs repo
+4. Create/update folder structure for todo archives
+5. Commit the completed todo list with descriptive message
+6. Push to the mkdocs repository
+7. Provide confirmation of successful commit
+
+**Violation Consequence**: Incomplete documentation, unarchived work
+
+### **Rule 18: Todo Archive Format**
+Completed todo archives **MUST** include:
+- Original todo list with all items
+- Test results and demonstrations for each item
+- Agent sign-off with timestamp
+- Summary of work completed
+- Any issues encountered and resolutions
+
+**Violation Consequence**: Incomplete records, verification gaps
+
+### **Rule 19: Progress Summary Maintenance**
+- **ALWAYS** maintain current progress summaries in `agents.md`
+- **NEVER** allow agents.md to become outdated
+- **ALWAYS** update progress summaries after significant work sessions
+- **NEVER** start new work without reviewing current progress in agents.md
+- **ALWAYS** include technical achievements, current status, and next priorities
+
+**Violation Consequence**: Knowledge gaps for subsequent agents, project continuity breaks
+
 ---
 
 **VIOLATION OF THESE RULES MAY RESULT IN:**
@@ -315,5 +403,7 @@ with monitor.monitor_job(job_id):
 - Service disruption
 - Security incidents
 - Legal compliance issues
+- Loss of AI accountability
+- Incomplete work documentation
 
 **ALL OPERATORS AND AI AGENTS MUST ACKNOWLEDGE AND COMPLY WITH THESE RULES.**

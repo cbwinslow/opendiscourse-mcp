@@ -1,0 +1,1054 @@
+# =============================================
+# FILE: sql/migrations/001_initial_opendiscourse_schema.sql
+# PROJECT: OpenDiscourse Ingestion Platform
+# AUTHOR: cbwinslow + GPT-5.1 Thinking
+# DATE: 2025-11-22
+# SUMMARY:
+#   Initial PostgreSQL schema for the OpenDiscourse ingestion
+#   platform, including core shared tables and a rich, normalized
+#   govinfo-specific schema (~20 govinfo_* tables) to store
+#   collection/package/file metadata, raw payloads, normalized
+#   documents, and ETL telemetry.
+#
+# INPUTS:
+#   - Executed against a fresh PostgreSQL 16+ database
+#   - Assumes role and database already created
+#
+# OUTPUTS:
+#   - Creates schema `opendiscourse`
+#   - Creates core and govinfo_* tables with indexes & FKs
+#
+# NOTES:
+#   - Designed to be applied once as an initial migration.
+#   - For production use, wire this into your migration tool
+#     (e.g., Alembic, Atlas, Sqitch) instead of running by hand.
+# =============================================
+
+-- Wrap everything in a transaction for safety
+BEGIN;
+
+-- Create dedicated schema for isolation
+CREATE SCHEMA IF NOT EXISTS opendiscourse;
+SET search_path TO opendiscourse, public;
+
+-- =============================
+-- CORE / SHARED TABLES
+-- =============================
+
+-- Table: ingestion_sources
+-- Purpose: catalog high-level sources (govinfo, congress, openstates, etc.)
+CREATE TABLE IF NOT EXISTS ingestion_sources (
+    id              BIGSERIAL       PRIMARY KEY,
+    code            TEXT            NOT NULL UNIQUE,  -- e.g. 'govinfo', 'congress', 'openstates'
+    name            TEXT            NOT NULL,
+    description     TEXT,
+    base_url        TEXT,
+    created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+-- Table: jurisdictions
+-- Purpose: represent countries, states, counties, municipalities, etc.
+CREATE TABLE IF NOT EXISTS jurisdictions (
+    id              BIGSERIAL       PRIMARY KEY,
+    kind            TEXT            NOT NULL,        -- 'federal', 'state', 'county', 'municipal', etc.
+    country_code    CHAR(2)         NOT NULL,        -- ISO 3166-1 alpha-2
+    name            TEXT            NOT NULL,
+    code            TEXT,                           -- state FIPS, etc.
+    parent_id       BIGINT          REFERENCES jurisdictions(id) ON DELETE SET NULL,
+    created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_jurisdictions_country_code
+    ON jurisdictions(country_code);
+
+-- Table: ingest_entities
+-- Purpose: generic people / orgs; concrete political entities can extend this
+CREATE TABLE IF NOT EXISTS ingest_entities (
+    id              BIGSERIAL       PRIMARY KEY,
+    entity_type     TEXT            NOT NULL,        -- 'person', 'organization', 'party', 'agency', ...
+    external_id     TEXT,                           -- global external reference key (optional)
+    display_name    TEXT            NOT NULL,
+    legal_name      TEXT,
+    metadata        JSONB           NOT NULL DEFAULT '{}'::JSONB,
+    created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    UNIQUE (entity_type, external_id)
+);
+
+-- Table: documents
+-- Purpose: unified abstraction for any legislative / political document
+CREATE TABLE IF NOT EXISTS documents (
+    id                  BIGSERIAL       PRIMARY KEY,
+    source_id           BIGINT          NOT NULL REFERENCES ingestion_sources(id) ON DELETE RESTRICT,
+    jurisdiction_id     BIGINT          REFERENCES jurisdictions(id) ON DELETE SET NULL,
+    external_id         TEXT            NOT NULL,      -- source-specific ID, e.g. govinfo packageId
+    document_type       TEXT            NOT NULL,      -- 'bill', 'hearing', 'statute', 'budget', ...
+    title               TEXT            NOT NULL,
+    description         TEXT,
+    published_at        TIMESTAMPTZ,
+    effective_at        TIMESTAMPTZ,
+    language_code       TEXT,
+    raw_metadata        JSONB           NOT NULL DEFAULT '{}'::JSONB,
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    UNIQUE (source_id, external_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_documents_source_external
+    ON documents(source_id, external_id);
+
+CREATE INDEX IF NOT EXISTS idx_documents_jurisdiction_published
+    ON documents(jurisdiction_id, published_at);
+
+-- Table: ingestion_jobs
+-- Purpose: track logical units of work (e.g., nightly govinfo sync)
+CREATE TABLE IF NOT EXISTS ingestion_jobs (
+    id              BIGSERIAL       PRIMARY KEY,
+    source_id       BIGINT          NOT NULL REFERENCES ingestion_sources(id) ON DELETE RESTRICT,
+    job_type        TEXT            NOT NULL,        -- 'full_sync', 'incremental', 'backfill', ...
+    params          JSONB           NOT NULL DEFAULT '{}'::JSONB,
+    status          TEXT            NOT NULL DEFAULT 'pending',  -- 'pending','running','succeeded','failed','cancelled'
+    started_at      TIMESTAMPTZ,
+    finished_at     TIMESTAMPTZ,
+    error_message   TEXT,
+    created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ingestion_jobs_source_status
+    ON ingestion_jobs(source_id, status);
+
+-- Table: ingestion_events
+-- Purpose: granular events within a job (per package, file, etc.)
+CREATE TABLE IF NOT EXISTS ingestion_events (
+    id              BIGSERIAL       PRIMARY KEY,
+    job_id          BIGINT          NOT NULL REFERENCES ingestion_jobs(id) ON DELETE CASCADE,
+    event_type      TEXT            NOT NULL,    -- 'package_discovered', 'file_downloaded', 'parse_error', ...
+    ref_kind        TEXT,                       -- 'govinfo_package', 'govinfo_file', 'document', ...
+    ref_id          BIGINT,                     -- FK into a source-specific table (nullable, enforced in code)
+    details         JSONB           NOT NULL DEFAULT '{}'::JSONB,
+    occurred_at     TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ingestion_events_job
+    ON ingestion_events(job_id);
+
+-- =============================
+-- GOVINFO-SPECIFIC SCHEMA
+-- Prefix: govinfo_*
+-- =============================
+
+-- 1) govinfo_collections
+--   High-level collections like BILLS, CREC, PLaw, STATUTE, etc.
+CREATE TABLE IF NOT EXISTS govinfo_collections (
+    id              BIGSERIAL       PRIMARY KEY,
+    code            TEXT            NOT NULL UNIQUE,  -- e.g. 'BILLS', 'CREC'
+    name            TEXT            NOT NULL,
+    description     TEXT,
+    metadata        JSONB           NOT NULL DEFAULT '{}'::JSONB,
+    created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+-- 2) govinfo_collection_stats
+CREATE TABLE IF NOT EXISTS govinfo_collection_stats (
+    id                  BIGSERIAL   PRIMARY KEY,
+    collection_id       BIGINT      NOT NULL REFERENCES govinfo_collections(id) ON DELETE CASCADE,
+    snapshot_date       DATE        NOT NULL,
+    package_count       BIGINT      NOT NULL DEFAULT 0,
+    file_count          BIGINT      NOT NULL DEFAULT 0,
+    bytes_total         BIGINT      NOT NULL DEFAULT 0,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (collection_id, snapshot_date)
+);
+
+-- 3) govinfo_packages
+--   One row per govinfo packageId. Many of these will map to a row in documents.
+CREATE TABLE IF NOT EXISTS govinfo_packages (
+    id                  BIGSERIAL       PRIMARY KEY,
+    source_id           BIGINT          NOT NULL REFERENCES ingestion_sources(id) ON DELETE RESTRICT,
+    collection_id       BIGINT          NOT NULL REFERENCES govinfo_collections(id) ON DELETE RESTRICT,
+    package_id          TEXT            NOT NULL UNIQUE,  -- govinfo packageId
+    congress            INTEGER,
+    session             TEXT,
+    title               TEXT,
+    description         TEXT,
+    doc_date            DATE,
+    identifiers         JSONB           NOT NULL DEFAULT '{}'::JSONB,
+    raw_metadata        JSONB           NOT NULL DEFAULT '{}'::JSONB,
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_govinfo_packages_collection
+    ON govinfo_packages(collection_id);
+
+CREATE INDEX IF NOT EXISTS idx_govinfo_packages_congress
+    ON govinfo_packages(congress);
+
+-- 4) govinfo_package_versions
+CREATE TABLE IF NOT EXISTS govinfo_package_versions (
+    id                  BIGSERIAL       PRIMARY KEY,
+    package_id          BIGINT          NOT NULL REFERENCES govinfo_packages(id) ON DELETE CASCADE,
+    version_tag         TEXT            NOT NULL,           -- e.g. ETag, lastModified hash
+    fetched_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    metadata_snapshot   JSONB           NOT NULL DEFAULT '{}'::JSONB,
+    UNIQUE (package_id, version_tag)
+);
+
+-- 5) govinfo_package_relationships
+CREATE TABLE IF NOT EXISTS govinfo_package_relationships (
+    id                  BIGSERIAL   PRIMARY KEY,
+    from_package_id     BIGINT      NOT NULL REFERENCES govinfo_packages(id) ON DELETE CASCADE,
+    to_package_id       BIGINT      NOT NULL REFERENCES govinfo_packages(id) ON DELETE CASCADE,
+    relationship_type   TEXT        NOT NULL,  -- 'is_version_of','is_part_of','references', etc.
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (from_package_id, to_package_id, relationship_type)
+);
+
+-- 6) govinfo_package_subjects
+CREATE TABLE IF NOT EXISTS govinfo_package_subjects (
+    id              BIGSERIAL       PRIMARY KEY,
+    package_id      BIGINT          NOT NULL REFERENCES govinfo_packages(id) ON DELETE CASCADE,
+    subject         TEXT            NOT NULL,
+    created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    UNIQUE (package_id, subject)
+);
+
+-- 7) govinfo_package_keywords
+CREATE TABLE IF NOT EXISTS govinfo_package_keywords (
+    id              BIGSERIAL       PRIMARY KEY,
+    package_id      BIGINT          NOT NULL REFERENCES govinfo_packages(id) ON DELETE CASCADE,
+    keyword         TEXT            NOT NULL,
+    created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    UNIQUE (package_id, keyword)
+);
+
+-- 8) govinfo_files
+--   Individual downloadable files belonging to a package (PDF, XML, TXT, ZIP, etc.)
+CREATE TABLE IF NOT EXISTS govinfo_files (
+    id                  BIGSERIAL       PRIMARY KEY,
+    package_id          BIGINT          NOT NULL REFERENCES govinfo_packages(id) ON DELETE CASCADE,
+    file_id             TEXT,
+    file_name           TEXT            NOT NULL,
+    file_type           TEXT            NOT NULL,      -- 'pdf','xml','txt','zip','json',...
+    media_type          TEXT,
+    byte_length         BIGINT,
+    checksum_sha1       TEXT,
+    checksum_md5        TEXT,
+    download_url        TEXT,
+    last_modified       TIMESTAMPTZ,
+    raw_metadata        JSONB           NOT NULL DEFAULT '{}'::JSONB,
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_govinfo_files_package
+    ON govinfo_files(package_id);
+
+-- 9) govinfo_file_variants
+--   Represent multiple renditions of the same logical file (text, OCR, etc.)
+CREATE TABLE IF NOT EXISTS govinfo_file_variants (
+    id                  BIGSERIAL       PRIMARY KEY,
+    file_id             BIGINT          NOT NULL REFERENCES govinfo_files(id) ON DELETE CASCADE,
+    variant_type        TEXT            NOT NULL,    -- 'original','ocr','normalized_text',...
+    byte_length         BIGINT,
+    storage_path        TEXT            NOT NULL,    -- path in object store / filesystem
+    checksum_sha256     TEXT,
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    UNIQUE (file_id, variant_type)
+);
+
+-- 10) govinfo_file_text_chunks
+--   Chunks of extracted text for search / RAG
+CREATE TABLE IF NOT EXISTS govinfo_file_text_chunks (
+    id                  BIGSERIAL       PRIMARY KEY,
+    file_id             BIGINT          NOT NULL REFERENCES govinfo_files(id) ON DELETE CASCADE,
+    chunk_index         INTEGER         NOT NULL,
+    text                TEXT            NOT NULL,
+    token_count         INTEGER,
+    embedding_vector    BYTEA,                      -- optional pgvector or custom representation
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    UNIQUE (file_id, chunk_index)
+);
+
+-- 11) govinfo_download_jobs
+CREATE TABLE IF NOT EXISTS govinfo_download_jobs (
+    id              BIGSERIAL       PRIMARY KEY,
+    job_id          BIGINT          NOT NULL REFERENCES ingestion_jobs(id) ON DELETE CASCADE,
+    collection_id   BIGINT          NOT NULL REFERENCES govinfo_collections(id) ON DELETE RESTRICT,
+    from_date       DATE,
+    to_date         DATE,
+    cursor          TEXT,                           -- govinfo pagination cursor
+    status          TEXT            NOT NULL DEFAULT 'pending',
+    created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+-- 12) govinfo_download_events
+CREATE TABLE IF NOT EXISTS govinfo_download_events (
+    id                  BIGSERIAL       PRIMARY KEY,
+    download_job_id     BIGINT          NOT NULL REFERENCES govinfo_download_jobs(id) ON DELETE CASCADE,
+    package_id          BIGINT          REFERENCES govinfo_packages(id) ON DELETE SET NULL,
+    file_id             BIGINT          REFERENCES govinfo_files(id) ON DELETE SET NULL,
+    event_type          TEXT            NOT NULL,  -- 'queued','download_started','download_succeeded','download_failed'
+    status_code         INTEGER,
+    error_message       TEXT,
+    occurred_at         TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+-- 13) govinfo_api_requests
+CREATE TABLE IF NOT EXISTS govinfo_api_requests (
+    id              BIGSERIAL       PRIMARY KEY,
+    source_id       BIGINT          NOT NULL REFERENCES ingestion_sources(id) ON DELETE RESTRICT,
+    endpoint        TEXT            NOT NULL,
+    http_method     TEXT            NOT NULL DEFAULT 'GET',
+    request_params  JSONB           NOT NULL DEFAULT '{}'::JSONB,
+    status_code     INTEGER,
+    error_message   TEXT,
+    requested_at    TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    responded_at    TIMESTAMPTZ,
+    response_ms     INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_govinfo_api_requests_endpoint
+    ON govinfo_api_requests(endpoint, requested_at DESC);
+
+-- 14) govinfo_raw_documents
+--   Raw JSON (or XML converted to JSON) payloads at the document level
+CREATE TABLE IF NOT EXISTS govinfo_raw_documents (
+    id                  BIGSERIAL       PRIMARY KEY,
+    package_id          BIGINT          NOT NULL REFERENCES govinfo_packages(id) ON DELETE CASCADE,
+    file_id             BIGINT          REFERENCES govinfo_files(id) ON DELETE SET NULL,
+    raw_format          TEXT            NOT NULL,       -- 'xml','json','text', etc.
+    raw_payload         JSONB           NOT NULL,
+    ingested_at         TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_govinfo_raw_documents_package
+    ON govinfo_raw_documents(package_id);
+
+-- 15) govinfo_normalized_documents
+--   Link govinfo packages into the shared documents table
+CREATE TABLE IF NOT EXISTS govinfo_normalized_documents (
+    id                  BIGSERIAL       PRIMARY KEY,
+    document_id         BIGINT          NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    package_id          BIGINT          NOT NULL REFERENCES govinfo_packages(id) ON DELETE RESTRICT,
+    canonical_file_id   BIGINT          REFERENCES govinfo_files(id) ON DELETE SET NULL,
+    normalization_info  JSONB           NOT NULL DEFAULT '{}'::JSONB,
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    UNIQUE (document_id),
+    UNIQUE (package_id)
+);
+
+-- 16) govinfo_document_sections
+CREATE TABLE IF NOT EXISTS govinfo_document_sections (
+    id                  BIGSERIAL       PRIMARY KEY,
+    normalized_doc_id   BIGINT          NOT NULL REFERENCES govinfo_normalized_documents(id) ON DELETE CASCADE,
+    section_label       TEXT,
+    section_index       INTEGER         NOT NULL,
+    heading             TEXT,
+    text                TEXT            NOT NULL,
+    token_count         INTEGER,
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    UNIQUE (normalized_doc_id, section_index)
+);
+
+-- 17) govinfo_document_citations
+CREATE TABLE IF NOT EXISTS govinfo_document_citations (
+    id                      BIGSERIAL   PRIMARY KEY,
+    normalized_doc_id       BIGINT      NOT NULL REFERENCES govinfo_normalized_documents(id) ON DELETE CASCADE,
+    cited_type              TEXT        NOT NULL,    -- 'usc','public_law','statute','bill','code_of_federal_regulations', ...
+    cited_reference         TEXT        NOT NULL,
+    context_snippet         TEXT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_govinfo_document_citations_type_ref
+    ON govinfo_document_citations(cited_type, cited_reference);
+
+-- 18) govinfo_person_mentions
+CREATE TABLE IF NOT EXISTS govinfo_person_mentions (
+    id                      BIGSERIAL   PRIMARY KEY,
+    normalized_doc_id       BIGINT      NOT NULL REFERENCES govinfo_normalized_documents(id) ON DELETE CASCADE,
+    entity_id               BIGINT      NOT NULL REFERENCES ingest_entities(id) ON DELETE RESTRICT,
+    role_label              TEXT,                   -- e.g. 'sponsor','cosponsor','chair','witness'
+    mention_count           INTEGER     NOT NULL DEFAULT 1,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (normalized_doc_id, entity_id, COALESCE(role_label, ''))
+);
+
+-- 19) govinfo_org_mentions
+CREATE TABLE IF NOT EXISTS govinfo_org_mentions (
+    id                      BIGSERIAL   PRIMARY KEY,
+    normalized_doc_id       BIGINT      NOT NULL REFERENCES govinfo_normalized_documents(id) ON DELETE CASCADE,
+    entity_id               BIGINT      NOT NULL REFERENCES ingest_entities(id) ON DELETE RESTRICT,
+    role_label              TEXT,
+    mention_count           INTEGER     NOT NULL DEFAULT 1,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (normalized_doc_id, entity_id, COALESCE(role_label, ''))
+);
+
+-- 20) govinfo_sync_state
+CREATE TABLE IF NOT EXISTS govinfo_sync_state (
+    id                  BIGSERIAL       PRIMARY KEY,
+    collection_id       BIGINT          NOT NULL REFERENCES govinfo_collections(id) ON DELETE CASCADE,
+    cursor              TEXT,                       -- last successful pagination cursor
+    last_package_date   DATE,                       -- last doc date synced
+    last_full_sync_at   TIMESTAMPTZ,
+    last_incremental_at TIMESTAMPTZ,
+    metadata            JSONB           NOT NULL DEFAULT '{}'::JSONB,
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    UNIQUE (collection_id)
+);
+
+-- =============================
+-- FINISH
+-- =============================
+
+COMMIT;
+
+
+# =============================================
+# FILE: python/ingestion/govinfo_agentic_ingest.py
+# PROJECT: OpenDiscourse Ingestion Platform
+# AUTHOR: cbwinslow + GPT-5.1 Thinking
+# DATE: 2025-11-22
+# SUMMARY:
+#   Skeleton implementation of a multi-agent, swarm-style
+#   govinfo ingestion pipeline using OpenRouter-hosted LLMs
+#   (via the openrouter-python SDK) for:
+#     - Planning & job orchestration
+#     - Metadata normalization
+#     - Entity / citation extraction
+#
+#   This script is designed as a reusable entrypoint that:
+#     1. Reads configuration from environment variables.
+#     2. Connects to PostgreSQL using psycopg.
+#     3. Uses a simple in-process "swarm" of agents to
+#        break down ingestion tasks and process them
+#        concurrently.
+#
+# INPUTS:
+#   - Environment variables:
+#       OPENDISCOURSE_DB_DSN          (e.g. postgresql://user:pass@host:5432/opendiscourse)
+#       OPENROUTER_API_KEY            (OpenRouter API key)
+#       GOVINFO_API_KEY               (govinfo API key)
+#
+# OUTPUTS:
+#   - Populates tables created by 001_initial_opendiscourse_schema.sql
+#   - Logs activity into ingestion_jobs and ingestion_events
+#
+# CAUTION:
+#   - This is a starting point: networking, auth, and retry
+#     logic should be hardened before production use.
+# =============================================
+
+import os
+import sys
+import json
+import time
+import logging
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+import psycopg
+from psycopg.rows import dict_row
+
+# NOTE: The actual OpenRouter SDK import may differ; adjust as needed.
+try:
+    # Placeholder import name; replace with real SDK when available.
+    from openrouter import OpenRouterClient  # type: ignore
+except ImportError:  # pragma: no cover - placeholder for now
+    OpenRouterClient = None  # type: ignore
+
+
+# -----------------------------------------------------------------------------
+# Logging configuration
+# -----------------------------------------------------------------------------
+
+LOGGER = logging.getLogger("govinfo_agentic_ingest")
+LOG_LEVEL = os.getenv("OPENDISCOURSE_LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=LOG_LEVEL,
+    format="[%(asctime)s] [%(levelname)s] %(name)s - %(message)s",
+)
+
+
+# -----------------------------------------------------------------------------
+# Configuration & utility helpers
+# -----------------------------------------------------------------------------
+
+@dataclass
+class DBConfig:
+    """Configuration for connecting to the PostgreSQL database.
+
+    Attributes
+    ----------
+    dsn : str
+        Full PostgreSQL DSN string.
+    """
+
+    dsn: str
+
+
+@dataclass
+class GovinfoConfig:
+    """Configuration for interacting with the govinfo API.
+
+    Attributes
+    ----------
+    api_key : str
+        govinfo API key.
+    base_url : str
+        Base URL for govinfo API.
+    collections : List[str]
+        List of collection codes to ingest.
+    days_back : int
+        Number of days to sync backward for incremental runs.
+    """
+
+    api_key: str
+    base_url: str = "https://api.govinfo.gov"
+    collections: List[str] = field(default_factory=lambda: ["BILLS", "CREC"])
+    days_back: int = 2
+
+
+@dataclass
+class LLMConfig:
+    """Configuration for OpenRouter LLM access.
+
+    Attributes
+    ----------
+    api_key : str
+        OpenRouter API key.
+    model_planner : str
+        Model used for planning / orchestration.
+    model_normalizer : str
+        Model used for normalization & extraction.
+    """
+
+    api_key: str
+    model_planner: str = "meta-llama/llama-3-70b-instruct"  # free model placeholder
+    model_normalizer: str = "qwen/qwen-2.5-72b-instruct"     # free model placeholder
+
+
+@dataclass
+class AppConfig:
+    """Top-level application configuration container."""
+
+    db: DBConfig
+    govinfo: GovinfoConfig
+    llm: LLMConfig
+
+
+def load_config() -> AppConfig:
+    """Load configuration from environment variables.
+
+    Returns
+    -------
+    AppConfig
+        Fully populated configuration object.
+    """
+
+    db_dsn = os.getenv("OPENDISCOURSE_DB_DSN")
+    if not db_dsn:
+        LOGGER.error("Environment variable OPENDISCOURSE_DB_DSN is required")
+        raise RuntimeError("Missing OPENDISCOURSE_DB_DSN")
+
+    govinfo_key = os.getenv("GOVINFO_API_KEY")
+    if not govinfo_key:
+        LOGGER.error("Environment variable GOVINFO_API_KEY is required")
+        raise RuntimeError("Missing GOVINFO_API_KEY")
+
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    if not openrouter_key:
+        LOGGER.error("Environment variable OPENROUTER_API_KEY is required")
+        raise RuntimeError("Missing OPENROUTER_API_KEY")
+
+    collections_env = os.getenv("GOVINFO_COLLECTIONS", "BILLS,CREC")
+    collections = [c.strip().upper() for c in collections_env.split(",") if c.strip()]
+
+    days_back_env = os.getenv("GOVINFO_DAYS_BACK", "2")
+    try:
+        days_back = int(days_back_env)
+    except ValueError:
+        LOGGER.warning("Invalid GOVINFO_DAYS_BACK=%s, defaulting to 2", days_back_env)
+        days_back = 2
+
+    return AppConfig(
+        db=DBConfig(dsn=db_dsn),
+        govinfo=GovinfoConfig(api_key=govinfo_key, collections=collections, days_back=days_back),
+        llm=LLMConfig(api_key=openrouter_key),
+    )
+
+
+# -----------------------------------------------------------------------------
+# Database helpers
+# -----------------------------------------------------------------------------
+
+
+def get_db_connection(cfg: DBConfig) -> psycopg.Connection:
+    """Create a PostgreSQL connection using psycopg.
+
+    Parameters
+    ----------
+    cfg : DBConfig
+        Database configuration.
+
+    Returns
+    -------
+    psycopg.Connection
+        Live connection object with `dict_row` row factory.
+    """
+
+    conn = psycopg.connect(cfg.dsn, row_factory=dict_row)
+    # Ensure we always operate in opendiscourse schema
+    with conn.cursor() as cur:
+        cur.execute("SET search_path TO opendiscourse, public;")
+    return conn
+
+
+# -----------------------------------------------------------------------------
+# LLM / OpenRouter helpers (swarm-style orchestration)
+# -----------------------------------------------------------------------------
+
+
+class PlannerAgent:
+    """Agent responsible for high-level ingestion planning.
+
+    Given:
+      - A list of collections
+      - A time window
+
+    It decides which collections and date ranges to ingest as
+    discrete tasks, returned as a list of `IngestionTask` objects.
+    """
+
+    def __init__(self, cfg: AppConfig, client: Optional[Any] = None) -> None:
+        self.cfg = cfg
+        self.client = client
+
+    def plan_incremental(self) -> List[Dict[str, Any]]:
+        """Produce a simple plan: one task per collection for a rolling window.
+
+        In future iterations, this will delegate to an LLM via OpenRouter
+        to balance load, skip low-signal collections, etc.
+        """
+
+        end_date = datetime.now(timezone.utc).date()
+        start_date = end_date - timedelta(days=self.cfg.govinfo.days_back)
+
+        tasks: List[Dict[str, Any]] = []
+        for collection in self.cfg.govinfo.collections:
+            tasks.append(
+                {
+                    "collection": collection,
+                    "from_date": start_date.isoformat(),
+                    "to_date": end_date.isoformat(),
+                    "mode": "incremental",
+                }
+            )
+        LOGGER.info("Planner created %d incremental tasks", len(tasks))
+        return tasks
+
+
+class NormalizerAgent:
+    """Agent responsible for metadata normalization & extraction.
+
+    This is where we will call OpenRouter models to:
+      - Normalize titles & document types
+      - Extract entities (people, orgs)
+      - Extract citations (USC, PLaw, CFR, bills, etc.)
+
+    For now this is a stub with deterministic behavior so the
+    pipeline is runnable without LLM access.
+    """
+
+    def __init__(self, cfg: AppConfig, client: Optional[Any] = None) -> None:
+        self.cfg = cfg
+        self.client = client
+
+    def normalize_package(self, package_row: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize a govinfo package row into a document metadata dict.
+
+        Parameters
+        ----------
+        package_row : Dict[str, Any]
+            Row from govinfo_packages.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Normalized fields for insertion into `documents`.
+        """
+
+        title = package_row.get("title") or "Untitled govinfo document"
+        doc_type = package_row.get("raw_metadata", {}).get("docClass", "unknown")
+
+        # Simple heuristic normalization (placeholder for LLM-based logic)
+        if package_row.get("collection_id"):
+            # In a future iteration, we would join collections and use LLM to
+            # infer better types; for now, use collection code directly.
+            pass
+
+        normalized = {
+            "document_type": doc_type,
+            "title": title,
+            "published_at": package_row.get("doc_date"),
+            "raw_metadata": package_row.get("raw_metadata", {}),
+        }
+        return normalized
+
+
+# -----------------------------------------------------------------------------
+# Swarm controller & workers
+# -----------------------------------------------------------------------------
+
+
+@dataclass
+class IngestionTask:
+    """Represents a single unit of govinfo ingestion work.
+
+    Attributes
+    ----------
+    collection : str
+        Collection code (e.g. 'BILLS', 'CREC').
+    from_date : str
+        Start date (ISO 8601, date-only).
+    to_date : str
+        End date (ISO 8601, date-only).
+    mode : str
+        Ingestion mode ('incremental', 'full', etc.).
+    """
+
+    collection: str
+    from_date: str
+    to_date: str
+    mode: str = "incremental"
+
+
+class GovinfoWorker:
+    """Worker responsible for executing an `IngestionTask`.
+
+    Responsibilities:
+      - Register an ingestion_job + govinfo_download_job
+      - Call govinfo API to discover packages (TODO: implement HTTP client)
+      - Insert/update govinfo_packages & govinfo_files
+      - Optionally call `NormalizerAgent` to create `documents` rows
+      - Emit `ingestion_events` for telemetry
+    """
+
+    def __init__(self, cfg: AppConfig, db_conn: psycopg.Connection, normalizer: NormalizerAgent):
+        self.cfg = cfg
+        self.conn = db_conn
+        self.normalizer = normalizer
+
+    # ----------------------------
+    # DB helpers
+    # ----------------------------
+
+    def _create_ingestion_job(self, source_id: int, task: IngestionTask) -> int:
+        params = {
+            "collection": task.collection,
+            "from_date": task.from_date,
+            "to_date": task.to_date,
+            "mode": task.mode,
+        }
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO ingestion_jobs (source_id, job_type, params, status, started_at)
+                VALUES (%s, %s, %s::jsonb, 'running', NOW())
+                RETURNING id;
+                """,
+                (self._get_source_id(cur), "govinfo_ingest", json.dumps(params)),
+            )
+            job_id = cur.fetchone()["id"]
+        self.conn.commit()
+        return job_id
+
+    def _get_source_id(self, cur: psycopg.Cursor) -> int:
+        cur.execute(
+            """
+            SELECT id FROM ingestion_sources
+            WHERE code = 'govinfo'
+            """
+        )
+        row = cur.fetchone()
+        if row:
+            return row["id"]
+        # If govinfo source is missing, create it on the fly.
+        cur.execute(
+            """
+            INSERT INTO ingestion_sources (code, name, description)
+            VALUES ('govinfo', 'govinfo.gov', 'Bulk government documents from govinfo.gov')
+            RETURNING id;
+            """
+        )
+        return cur.fetchone()["id"]
+
+    def _mark_job_finished(self, job_id: int, status: str, error_message: Optional[str] = None) -> None:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE ingestion_jobs
+                SET status = %s,
+                    finished_at = NOW(),
+                    error_message = %s
+                WHERE id = %s;
+                """,
+                (status, error_message, job_id),
+            )
+        self.conn.commit()
+
+    def _emit_event(
+        self,
+        job_id: int,
+        event_type: str,
+        ref_kind: Optional[str] = None,
+        ref_id: Optional[int] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO ingestion_events (job_id, event_type, ref_kind, ref_id, details, occurred_at)
+                VALUES (%s, %s, %s, %s, %s::jsonb, NOW());
+                """,
+                (job_id, event_type, ref_kind, ref_id, json.dumps(details or {})),
+            )
+        self.conn.commit()
+
+    # ----------------------------
+    # Public API
+    # ----------------------------
+
+    def run_task(self, task: IngestionTask) -> None:
+        """Execute the given ingestion task.
+
+        This method is intentionally conservative and single-threaded. You can
+        scale out by spawning multiple workers and distributing tasks.
+        """
+
+        LOGGER.info(
+            "Starting govinfo ingestion task: collection=%s from=%s to=%s",
+            task.collection,
+            task.from_date,
+            task.to_date,
+        )
+
+        # Start job
+        with self.conn.cursor() as cur:
+            source_id = self._get_source_id(cur)
+        job_id = self._create_ingestion_job(source_id, task)
+
+        try:
+            # TODO: implement govinfo API list query here.
+            # For now, we simulate a single fake package so the
+            # pipeline is structurally complete.
+            fake_package = {
+                "package_id": f"SIM-{task.collection}-{task.from_date}-{task.to_date}",
+                "collection": task.collection,
+                "title": f"Simulated {task.collection} package",
+                "doc_date": task.from_date,
+                "raw_metadata": {"simulated": True},
+            }
+
+            self._emit_event(job_id, "package_discovered", "govinfo_package", None, fake_package)
+
+            package_db_row = self._upsert_govinfo_package(fake_package)
+            normalized = self.normalizer.normalize_package(package_db_row)
+            self._create_document_for_package(package_db_row, normalized)
+
+            self._emit_event(job_id, "job_completed", None, None, {"packages_processed": 1})
+            self._mark_job_finished(job_id, "succeeded")
+
+        except Exception as exc:  # pragma: no cover - defensive
+            LOGGER.exception("Error running ingestion task: %s", exc)
+            self._emit_event(job_id, "job_failed", None, None, {"error": str(exc)})
+            self._mark_job_finished(job_id, "failed", str(exc))
+
+    # ----------------------------
+    # Internal helpers
+    # ----------------------------
+
+    def _upsert_govinfo_package(self, pkg: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert or update a govinfo package and return the row.
+
+        Parameters
+        ----------
+        pkg : Dict[str, Any]
+            Minimal package metadata as returned from govinfo.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Database row after upsert.
+        """
+
+        with self.conn.cursor() as cur:
+            # Ensure collection exists
+            cur.execute(
+                """
+                INSERT INTO govinfo_collections (code, name)
+                VALUES (%s, %s)
+                ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+                RETURNING id;
+                """,
+                (pkg["collection"], pkg["collection"]),
+            )
+            collection_id = cur.fetchone()["id"]
+
+            # Upsert package
+            cur.execute(
+                """
+                INSERT INTO govinfo_packages (
+                    source_id, collection_id, package_id, title, doc_date, raw_metadata
+                )
+                VALUES (
+                    (SELECT id FROM ingestion_sources WHERE code = 'govinfo'),
+                    %s, %s, %s, %s::date, %s::jsonb
+                )
+                ON CONFLICT (package_id) DO UPDATE
+                    SET title = EXCLUDED.title,
+                        doc_date = EXCLUDED.doc_date,
+                        raw_metadata = EXCLUDED.raw_metadata,
+                        updated_at = NOW()
+                RETURNING *;
+                """,
+                (
+                    collection_id,
+                    pkg["package_id"],
+                    pkg.get("title"),
+                    pkg.get("doc_date"),
+                    json.dumps(pkg.get("raw_metadata", {})),
+                ),
+            )
+            row = cur.fetchone()
+        self.conn.commit()
+        return row
+
+    def _create_document_for_package(self, pkg_row: Dict[str, Any], normalized: Dict[str, Any]) -> int:
+        """Create a `documents` row and `govinfo_normalized_documents` entry.
+
+        Returns
+        -------
+        int
+            Newly created document.id.
+        """
+
+        with self.conn.cursor() as cur:
+            # Create document record
+            cur.execute(
+                """
+                INSERT INTO documents (
+                    source_id, jurisdiction_id, external_id,
+                    document_type, title, published_at, raw_metadata
+                )
+                VALUES (
+                    (SELECT id FROM ingestion_sources WHERE code = 'govinfo'),
+                    NULL,
+                    %s,
+                    %s,
+                    %s,
+                    %s::timestamptz,
+                    %s::jsonb
+                )
+                RETURNING id;
+                """,
+                (
+                    pkg_row["package_id"],
+                    normalized["document_type"],
+                    normalized["title"],
+                    None,
+                    json.dumps(normalized["raw_metadata"]),
+                ),
+            )
+            document_id = cur.fetchone()["id"]
+
+            # Link into govinfo_normalized_documents
+            cur.execute(
+                """
+                INSERT INTO govinfo_normalized_documents (
+                    document_id, package_id, normalization_info
+                )
+                VALUES (%s, %s, %s::jsonb)
+                ON CONFLICT (package_id) DO UPDATE
+                    SET document_id = EXCLUDED.document_id,
+                        normalization_info = EXCLUDED.normalization_info,
+                        created_at = COALESCE(govinfo_normalized_documents.created_at, NOW());
+                """,
+                (
+                    document_id,
+                    pkg_row["id"],
+                    json.dumps({"strategy": "simple_stub"}),
+                ),
+            )
+        self.conn.commit()
+        return document_id
+
+
+# -----------------------------------------------------------------------------
+# Main entrypoint
+# -----------------------------------------------------------------------------
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """Entry point for the govinfo ingestion pipeline.
+
+    Parameters
+    ----------
+    argv : Optional[List[str]]
+        Command-line arguments (unused for now).
+
+    Returns
+    -------
+    int
+        Process exit code (0 = success, non-zero = failure).
+    """
+
+    _ = argv or sys.argv[1:]
+
+    try:
+        cfg = load_config()
+    except RuntimeError as exc:
+        LOGGER.error("Configuration error: %s", exc)
+        return 1
+
+    # Initialize DB connection
+    try:
+        conn = get_db_connection(cfg.db)
+    except Exception as exc:  # pragma: no cover - defensive
+        LOGGER.exception("Failed to connect to PostgreSQL: %s", exc)
+        return 2
+
+    # Initialize (optional) OpenRouter client
+    client = None
+    if OpenRouterClient is not None:
+        try:
+            client = OpenRouterClient(api_key=cfg.llm.api_key)  # type: ignore[arg-type]
+        except Exception as exc:  # pragma: no cover
+            LOGGER.warning("Failed to initialize OpenRouter client, continuing without LLM: %s", exc)
+
+    planner = PlannerAgent(cfg, client)
+    normalizer = NormalizerAgent(cfg, client)
+    worker = GovinfoWorker(cfg, conn, normalizer)
+
+    # Simple swarm: planner -> single worker (can be extended to a real pool)
+    task_dicts = planner.plan_incremental()
+    tasks = [IngestionTask(**t) for t in task_dicts]
+
+    for task in tasks:
+        worker.run_task(task)
+
+    LOGGER.info("All govinfo tasks completed")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

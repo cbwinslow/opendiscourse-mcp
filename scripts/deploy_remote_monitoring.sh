@@ -4,7 +4,7 @@
 
 set -e
 
-REMOTE_SERVER="100.90.23.60"
+REMOTE_SERVER="100.90.251.120"
 REMOTE_USER="cbwinslow"
 REMOTE_DIR="/home/cbwinslow/opendiscourse-monitoring"
 SSH_KEY="$HOME/.ssh/id_ed25519"
@@ -127,7 +127,7 @@ User=cbwinslow
 Group=cbwinslow
 Type=simple
 ExecStart=/usr/local/bin/postgres_exporter \\
-  --datasource="postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse?sslmode=disable"
+  --datasource="postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse?sslmode=disable"
 
 [Install]
 WantedBy=multi-user.target
@@ -210,7 +210,7 @@ scrape_configs:
   # Remote ingestion metrics (from laptop)
   - job_name: 'opendiscourse-ingestion-remote'
     static_configs:
-      - targets: ['100.90.23.60:8000']  # Your laptop IP
+      - targets: ['100.90.251.120:8000']  # Your laptop IP
     metrics_path: '/metrics'
     scrape_interval: 10s
     scrape_timeout: 5s
@@ -254,7 +254,7 @@ receivers:
 
   # PostgreSQL database receiver
   postgresql:
-    endpoint: "postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse"
+    endpoint: "postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse"
     collection_interval: 30s
     tls:
       insecure: true

@@ -438,4 +438,51 @@ This guide ensures AI agents can effectively and safely work with the OpenDiscou
 
 ---
 
+## 📈 **RECENT PROGRESS AND UPDATES**
+
+*This section is updated frequently to maintain project continuity for AI agents. Review this before starting work.*
+
+### **Latest Updates (2025-11-23)**
+
+#### **Repository Organization & Rules Enhancement**
+- **✅ Features Documentation**: Created comprehensive `features.md` with 12 major system feature categories
+- **✅ Rules Expansion**: Added Rules 11-19 to `rules.md` covering AI logging, todo management, and GitHub archival
+- **✅ Journal Append-Only Policy**: Implemented strict immutability rules for `journals/journal.md`
+- **✅ MkDocs Integration**: Set up todo archival system in https://github.com/cbwinslow/mkdocs
+- **✅ Todo Management Protocol**: Established structured todo requirements with microgoals, criteria, and tests
+
+#### **System Architecture Status**
+- **Database Trigger System**: ✅ Fully operational with automatic progress tracking
+- **API Clients**: ✅ Congress, GovInfo, OpenStates clients implemented and tested
+- **Monitoring Framework**: ✅ Real-time progress monitoring via database triggers
+- **Ingestion Scripts**: ✅ Organized by dataset (congress/, govinfo/, openstates/)
+- **Testing Infrastructure**: ✅ Comprehensive test suites for all components
+
+#### **Current Project State**
+- **Data Ingestion**: All three legislative data sources integrated
+- **Monitoring**: Trigger-based system prevents manual progress updates
+- **Documentation**: Complete guides for agents, rules, and procedures
+- **Archival**: Todo completion and knowledge transfer systems implemented
+
+#### **Immediate Priorities**
+1. **Test Full Ingestion Pipeline** - End-to-end testing of congress/govinfo/openstates data flow
+2. **Performance Optimization** - Benchmark and optimize large-scale ingestion operations
+3. **API Rate Limit Management** - Implement intelligent rate limiting across all clients
+4. **Monitoring Dashboard** - Create real-time system health visualization
+5. **Documentation Updates** - Keep all guides current with latest changes
+
+#### **Technical Debt & Future Work**
+- **Concurrent Job Isolation**: Ensure multiple agents can work simultaneously without interference
+- **Error Recovery**: Implement automatic retry mechanisms for failed API calls
+- **Data Validation**: Add comprehensive schema validation for all ingested data
+- **Scalability Testing**: Test system performance under high load conditions
+
+#### **Agent Handover Notes**
+- **Journal System**: All AI reasoning logged to `journals/journal.md` (append-only)
+- **Todo Protocol**: Complex tasks require structured todos with tests and archival
+- **Rules Compliance**: 19 mandatory rules must be followed for system integrity
+- **MkDocs Archival**: Completed todos committed to https://github.com/cbwinslow/mkdocs
+
+---
+
 *All journal entries are immutable historical records that must never be modified or deleted after submission.*

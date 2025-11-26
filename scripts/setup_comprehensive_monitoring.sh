@@ -122,7 +122,7 @@ EOF
 # Setup database triggers
 echo "🗄️  Setting up database triggers..."
 export PGPASSWORD=opendiscourse123
-psql -h 100.90.23.60 -U opendiscourse -d opendiscourse -f /home/cbwinslow/opendiscourse/mcp_server/sql/monitoring_triggers.sql
+psql -h 100.90.251.120 -U opendiscourse -d opendiscourse -f /home/cbwinslow/opendiscourse/mcp_server/sql/monitoring_triggers.sql
 
 # Create systemd services
 echo "🔧 Creating systemd services..."
@@ -184,7 +184,7 @@ User=cbwinslow
 Group=cbwinslow
 Type=simple
 ExecStart=/usr/local/bin/postgres_exporter \\
-  --datasource="postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse?sslmode=disable"
+  --datasource="postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse?sslmode=disable"
 
 [Install]
 WantedBy=multi-user.target

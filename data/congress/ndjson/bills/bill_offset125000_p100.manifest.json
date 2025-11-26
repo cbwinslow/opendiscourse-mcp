@@ -1,0 +1,11 @@
+{
+  "from_date": "2025-01-01",
+  "start_offset": 125000,
+  "limit": 250,
+  "pages_requested": 100,
+  "pages_fetched": 100,
+  "records": 25000,
+  "status": "completed",
+  "errors": [],
+  "ndjson_path": "data/congress/ndjson/bills/bill_offset125000_p100.ndjson"
+}

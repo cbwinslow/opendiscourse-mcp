@@ -1,0 +1,13 @@
+dotfiles:
+  tool: "yadm"
+  repo: "git@github.com:cbwinslow/dotfiles.git"
+  bootstrap_script: "scripts/bootstrap.sh"
+  tags: ["terminal", "desktop", "matrix-theme"]
+
+profiles:
+  - id: kali
+    host_pattern: "cbwdellkali*"
+    branches: ["kali"]
+  - id: workstation
+    host_pattern: "cbwamd*"
+    branches: ["main"]

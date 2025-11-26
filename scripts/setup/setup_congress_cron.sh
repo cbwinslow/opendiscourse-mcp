@@ -11,7 +11,7 @@ echo "================================================"
 SCRIPT_DIR="/home/cbwinslow/opendiscourse/mcp_server/scripts"
 LOG_DIR="/home/cbwinslow/opendiscourse/logs"
 VENV_PATH="/home/cbwinslow/opendiscourse/.venv/bin/activate"
-DB_URL="postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse"
+DB_URL="postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse"
 API_KEY="U71JFZEqNsiSranCdbrj4pZaobtoMtAnl18cIJc2"
 
 # Create log directory

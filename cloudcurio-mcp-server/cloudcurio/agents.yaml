@@ -1,0 +1,19 @@
+agents:
+  - id: infra-auditor
+    name: "Infra Auditor"
+    description: "Audits servers, SSH configs, and security policies."
+    type: mcp
+    mcp_server_url: "https://mcp.cloudcurio.cc/mcp"
+    tools:
+      - system_info
+      - ping_host
+      - docker_list_containers
+    tags: ["infra", "security", "homelab"]
+
+  - id: registry-admin
+    name: "Registry Admin"
+    description: "Manages MCP registry entries and metadata."
+    type: api
+    api_base_url: "https://registry.modelcontextprotocol.io"
+    scopes: ["read", "write"]
+    tags: ["registry", "mcp"]

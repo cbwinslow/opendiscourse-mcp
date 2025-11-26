@@ -14,7 +14,7 @@ receivers:
 
   # PostgreSQL database receiver
   postgresql:
-    endpoint: "postgresql://opendiscourse:opendiscourse123@100.90.23.60:5432/opendiscourse"
+    endpoint: "postgresql://opendiscourse:opendiscourse123@100.90.251.120:5432/opendiscourse"
     collection_interval: 30s
     tls:
       insecure: true

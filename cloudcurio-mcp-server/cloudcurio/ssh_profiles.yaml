@@ -1,0 +1,14 @@
+ssh_profiles:
+  - id: cbwr720
+    host: "cbwr720.cloudcurio.cc"
+    port: 22
+    user: "cbwinslow"
+    key_path: "~/.ssh/id_ed25519"
+    tags: ["server", "ubuntu", "proxmox-node"]
+
+  - id: cbwhpz
+    host: "cbwhpz.cloudcurio.cc"
+    port: 22
+    user: "cbwinslow"
+    key_path: "~/.ssh/id_ed25519"
+    tags: ["server", "proxmox"]

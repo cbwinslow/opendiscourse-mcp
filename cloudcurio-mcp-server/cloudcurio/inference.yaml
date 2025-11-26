@@ -1,0 +1,13 @@
+endpoints:
+  - id: openrouter-free
+    provider: "openrouter"
+    base_url: "https://openrouter.ai/api/v1"
+    model: "anthropic/claude-3-haiku:free"
+    api_key_env: "OPENROUTER_API_KEY"
+    tags: ["free", "remote"]
+
+  - id: local-ollama-qwen
+    provider: "ollama"
+    base_url: "http://127.0.0.1:11434"
+    model: "qwen2.5-coder"
+    tags: ["local", "coding"]

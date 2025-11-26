@@ -1,0 +1,18 @@
+databases:
+  - id: opendiscourse
+    engine: postgres
+    host: "100.90.251.120"
+    port: 5432
+    database: "opendiscourse"
+    user: "opendiscourse"
+    password_env: "DB_PASS_OPENDISCOURSE"
+    tags: ["prod", "political-data"]
+
+  - id: homelab-metrics
+    engine: postgres
+    host: "cbwdellr720"
+    port: 5432
+    database: "metrics"
+    user: "metrics"
+    password_env: "DB_PASS_METRICS"
+    tags: ["metrics", "homelab"]

@@ -1,0 +1,396 @@
+# Cloudflare Ingest Architecture: Ansible + Next.js UI
+
+Below are two main components:
+
+1. Ansible playbook to set up Postgres exposure via Cloudflare Tunnel + basic Cloudflare DNS + deploy the multi-source Worker.
+2. A minimal Next.js UI page to trigger ingestion runs manually.
+
+---
+
+## 1. Ansible Playbook: `cloudflare_ingest_stack.yml`
+
+```yaml
+---
+# File: ansible/cloudflare_ingest_stack.yml
+# Author: CBW + GPT-5.1 Thinking
+# Date: 2025-11-22
+#
+# Summary:
+#   This playbook:
+#     - Installs and configures cloudflared on your homelab Postgres host.
+#     - Configures a Cloudflare Tunnel (using a pre-created tunnel token).
+#     - Ensures Postgres is listening on localhost and reachable by the tunnel.
+#     - Creates a DNS record in Cloudflare for the tunnel hostname.
+#     - Optionally deploys the Cloudflare Worker using `wrangler` from localhost.
+#
+# Requirements:
+#   - On control node: Ansible, Python, and `wrangler` (if using worker deploy).
+#   - On homelab host: Debian/Ubuntu-like system with systemd.
+#   - Cloudflare API token with:
+#       * DNS:Edit for your zone
+#   - A Cloudflare Tunnel already created in dashboard with a tunnel token
+#     (you paste that token into `cloudflare_tunnel_token`).
+#
+# Variables you must set (group_vars/ or extra_vars):
+#   cloudflare_api_token: "<CF_API_TOKEN>"
+#   cloudflare_account_id: "<CF_ACCOUNT_ID>"
+#   cloudflare_zone_id: "<CF_ZONE_ID>"
+#   cloudflare_zone_name: "cloudcurio.cc"
+#   cloudflare_tunnel_name: "homelab-pg-tunnel"
+#   cloudflare_tunnel_token: "<TUNNEL_TOKEN_FROM_DASHBOARD>"
+#   cloudflare_tunnel_hostname: "pg-homelab.cloudcurio.cc"
+#
+#   postgres_host: "127.0.0.1"
+#   postgres_port: 5432
+#
+#   worker_project_path: "~/dev/opendiscourse/cf-ingestor"  # where wrangler.toml lives
+#   worker_name: "cf-multi-source-ingestor"
+#
+
+- name: Configure cloudflared and Postgres tunnel on homelab host
+  hosts: homelab_pg
+  become: true
+  vars:
+    cloudflared_bin: "/usr/local/bin/cloudflared"
+    cloudflared_service: "cloudflared.service"
+  tasks:
+    - name: Ensure Postgres is installed (Debian/Ubuntu example)
+      apt:
+        name: postgresql
+        state: present
+        update_cache: true
+
+    - name: Ensure Postgres is listening on localhost
+      lineinfile:
+        path: /etc/postgresql/16/main/postgresql.conf
+        regexp: '^#?listen_addresses'
+        line: "listen_addresses = '127.0.0.1'"
+      notify: Restart Postgres
+
+    - name: Ensure cloudflared is installed
+      ansible.builtin.get_url:
+        url: "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
+        dest: "{{ cloudflared_bin }}"
+        mode: '0755'
+
+    - name: Create cloudflared config directory
+      file:
+        path: /etc/cloudflared
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Write cloudflared config for Postgres tunnel
+      copy:
+        dest: /etc/cloudflared/config.yml
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          tunnel: {{ cloudflare_tunnel_name }}
+          credentials-file: /etc/cloudflared/{{ cloudflare_tunnel_name }}.json
+
+          ingress:
+            - hostname: {{ cloudflare_tunnel_hostname }}
+              service: tcp://{{ postgres_host }}:{{ postgres_port }}
+            - service: http_status:404
+
+    - name: Write cloudflared credentials file
+      copy:
+        dest: "/etc/cloudflared/{{ cloudflare_tunnel_name }}.json"
+        owner: root
+        group: root
+        mode: '0600'
+        content: |
+          {{ cloudflare_tunnel_token }}
+      no_log: true
+
+    - name: Create systemd service for cloudflared
+      copy:
+        dest: /etc/systemd/system/{{ cloudflared_service }}
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=cloudflared tunnel service
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          ExecStart={{ cloudflared_bin }} tunnel run {{ cloudflare_tunnel_name }}
+          Restart=always
+          User=root
+          Group=root
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+    - name: Enable and start cloudflared service
+      systemd:
+        name: "{{ cloudflared_service }}"
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Restart Postgres
+      service:
+        name: postgresql
+        state: restarted
+
+
+- name: Configure Cloudflare DNS record for tunnel
+  hosts: localhost
+  gather_facts: false
+  vars:
+    cloudflare_api_base: "https://api.cloudflare.com/client/v4"
+  tasks:
+    - name: Create/Update CNAME record for tunnel
+      uri:
+        url: "{{ cloudflare_api_base }}/zones/{{ cloudflare_zone_id }}/dns_records"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ cloudflare_api_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          type: "CNAME"
+          name: "{{ cloudflare_tunnel_hostname }}"
+          content: "{{ cloudflare_tunnel_name }}.cfargotunnel.com"
+          ttl: 300
+          proxied: true
+        status_code:
+          - 200
+          - 201
+          - 409   # 409 if record already exists
+      register: dns_result
+
+    - name: Debug DNS API result (optional)
+      debug:
+        var: dns_result.json
+
+
+- name: Deploy Cloudflare Worker for multi-source ingestion
+  hosts: localhost
+  gather_facts: false
+  vars:
+    wrangler_cmd: "wrangler"
+  tasks:
+    - name: Ensure wrangler is installed (npm)
+      community.general.npm:
+        name: wrangler
+        path: "{{ worker_project_path }}"
+        global: true
+      become: false
+
+    - name: Deploy Worker using wrangler
+      ansible.builtin.command:
+        cmd: "{{ wrangler_cmd }} deploy --name {{ worker_name }}"
+        chdir: "{{ worker_project_path }}"
+      environment:
+        CF_API_TOKEN: "{{ cloudflare_api_token }}"
+      register: wrangler_result
+
+    - name: Show wrangler deploy output
+      debug:
+        var: wrangler_result.stdout
+```
+
+---
+
+## 2. Next.js UI Page: `app/page.tsx`
+
+This is a simple dashboard that lets you:
+
+- Pick a `source` (govinfo / congress / openstates).
+- Set `limit` per run.
+- Trigger ingestion by calling your Cloudflare Worker endpoint.
+- See the JSON result and a basic status banner.
+
+Assumes Next.js 13+ with the App Router and TypeScript.
+
+```tsx
+/**
+ * File: app/page.tsx
+ * Project: Cloudflare Ingest Dashboard
+ * Author: CBW + GPT-5.1 Thinking
+ * Date: 2025-11-22
+ *
+ * Summary:
+ *   Simple UI to trigger ingestion runs against the Cloudflare
+ *   multi-source Worker. It calls the Worker HTTP endpoint and
+ *   renders the JSON response.
+ *
+ * Env:
+ *   NEXT_PUBLIC_INGEST_WORKER_URL must be set to the base URL of
+ *   your Worker, e.g.:
+ *     https://cf-multi-source-ingestor.your-zone.workers.dev/ingest
+ */
+
+"use client";
+
+import { useState } from "react";
+
+const SOURCES = ["govinfo", "congress", "openstates"] as const;
+
+type Source = (typeof SOURCES)[number];
+
+interface IngestResponse {
+  source: string;
+  processed: number;
+  errors: number;
+  newCursor?: unknown;
+}
+
+export default function IngestDashboardPage() {
+  const [source, setSource] = useState<Source>("govinfo");
+  const [limit, setLimit] = useState<number>(100);
+  const [cursorOverride, setCursorOverride] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<IngestResponse | null>(null);
+
+  const workerUrl =
+    process.env.NEXT_PUBLIC_INGEST_WORKER_URL ?? "";
+
+  const handleRun = async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      if (!workerUrl) {
+        throw new Error(
+          "NEXT_PUBLIC_INGEST_WORKER_URL is not set in environment.",
+        );
+      }
+
+      const url = new URL(workerUrl);
+      url.searchParams.set("source", source);
+      url.searchParams.set("limit", String(limit));
+      if (cursorOverride.trim().length > 0) {
+        url.searchParams.set("cursorOverride", cursorOverride);
+      }
+
+      const res = await fetch(url.toString());
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Worker error ${res.status}: ${text}`);
+      }
+
+      const json = (await res.json()) as IngestResponse;
+      setResult(json);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center p-6">
+      <div className="w-full max-w-3xl border border-slate-700 rounded-2xl p-6 bg-slate-900/70 shadow-lg">
+        <h1 className="text-2xl font-semibold mb-4">
+          Cloudflare Ingest Dashboard
+        </h1>
+        <p className="text-sm text-slate-300 mb-6">
+          Trigger ingestion from <span className="font-mono">govinfo</span>,
+          <span className="font-mono"> congress</span>, and
+          <span className="font-mono"> openstates</span> into your homelab
+          Postgres via Hyperdrive.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div>
+            <label className="block text-sm font-medium mb-1">Source</label>
+            <select
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              value={source}
+              onChange={(e) => setSource(e.target.value as Source)}
+            >
+              {SOURCES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Limit</label>
+            <input
+              type="number"
+              min={1}
+              max={500}
+              value={limit}
+              onChange={(e) => setLimit(Number(e.target.value) || 1)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            />
+            <p className="text-xs text-slate-400 mt-1">
+              Max records to process this run (safety cap at 500).
+            </p>
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <label className="block text-sm font-medium mb-1">
+            Cursor Override (optional)
+          </label>
+          <textarea
+            value={cursorOverride}
+            onChange={(e) => setCursorOverride(e.target.value)}
+            rows={3}
+            placeholder='{"page": 5} or {"sinceIso": "2024-01-01T00:00:00Z"}'
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          />
+          <p className="text-xs text-slate-400 mt-1">
+            JSON object passed directly to the Worker as
+            <span className="font-mono"> cursorOverride</span>.
+          </p>
+        </div>
+
+        <button
+          onClick={handleRun}
+          disabled={loading}
+          className="inline-flex items-center px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-700 text-sm font-semibold transition-colors"
+        >
+          {loading ? "Running..." : "Run Ingest"}
+        </button>
+
+        {error && (
+          <div className="mt-4 p-3 border border-red-500/60 rounded-lg bg-red-900/30 text-sm">
+            <strong className="block mb-1">Error</strong>
+            <pre className="whitespace-pre-wrap break-all text-xs">{error}</pre>
+          </div>
+        )}
+
+        {result && !error && (
+          <div className="mt-4 p-3 border border-emerald-500/60 rounded-lg bg-emerald-900/20 text-sm">
+            <strong className="block mb-1">Last Run</strong>
+            <p className="mb-1">
+              Source: <span className="font-mono">{result.source}</span>
+            </p>
+            <p className="mb-1">
+              Processed: {result.processed} | Errors: {result.errors}
+            </p>
+            {result.newCursor && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-xs text-slate-200">
+                  View new cursor
+                </summary>
+                <pre className="mt-2 text-xs bg-slate-950/60 p-2 rounded-lg overflow-x-auto">
+                  {JSON.stringify(result.newCursor, null, 2)}
+                </pre>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

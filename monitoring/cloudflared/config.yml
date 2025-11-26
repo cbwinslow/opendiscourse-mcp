@@ -37,7 +37,7 @@ ingress:
 
   # PostgreSQL database (restricted access)
   - hostname: db.opendiscourse.com
-    service: tcp://100.90.23.60:5432
+    service: tcp://100.90.251.120:5432
     originRequest:
       noTLSVerify: true
 

@@ -71,7 +71,7 @@
 #    db:
 #      hosts:
 #        opendiscourse-db-1:
-#          ansible_host: 100.90.23.60          # Example from prior discussions
+#          ansible_host: 100.90.251.120          # Example from prior discussions
 #          ansible_user: cbwinslow
 #    cloudflare:
 #      hosts:
